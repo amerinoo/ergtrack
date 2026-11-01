@@ -185,17 +185,16 @@ class ArcadeGUI:
         canvas.create_line(0, y(lo), w, y(lo), fill=GREEN, width=2)
         if hi is not None:
             canvas.create_line(0, y(hi), w, y(hi), fill=GREEN, width=2)
-        canvas.create_text(9, 8, text="ESFUERZO · ÚLTIMOS 30 S", anchor="nw", fill=MUTED, font=("Helvetica", 9))
+        canvas.create_text(9, 8, text="ESFUERZO · ÚLTIMOS 15 S", anchor="nw", fill=MUTED, font=("Helvetica", 9))
         if len(self.power_history) > 1:
             latest = self.power_history[-1][0]
-            first = self.power_history[0][0]
-            # Start drawing at the horizontal center, moving right with time.
-            # Once the right edge is reached, scroll the 30-second window.
-            window_start = max(first - 15, latest - 30)
+            # The live point stays horizontally centered; older values move left.
+            center_x = w / 2
+            pixels_per_second = (w / 2 - 12) / 15
             coords = []
             for timestamp, power in self.power_history:
-                if timestamp >= window_start:
-                    x = 12 + (timestamp - window_start) / 30 * (w - 24)
+                x = center_x - (latest - timestamp) * pixels_per_second
+                if x >= 12:
                     coords.extend((x, y(power)))
             if len(coords) >= 4:
                 canvas.create_line(*coords, fill="#07354C", width=13, smooth=True,

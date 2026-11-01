@@ -82,9 +82,11 @@ class ArcadeGUI:
         controls = tk.Frame(self.root, bg=BG)
         self.controls_panel = controls
         controls.pack(side="bottom", fill="x", padx=28, pady=(4, 12))
-        self.start_button = tk.Button(controls, text="▶ CONECTAR Y PREPARAR", command=self.start, bg=CYAN, fg="white", font=("Helvetica", 15, "bold"), relief="flat", padx=18, pady=12)
+        self.start_button = self.action_button(controls, "▶  CONECTAR Y PREPARAR", self.start,
+                                               CYAN, WHITE)
         self.start_button.pack(side="left", fill="x", expand=True, padx=(0, 8))
-        self.stop_button = tk.Button(controls, text="■ Detener", command=self.stop, bg="#34445B", fg="white", font=("Helvetica", 15), relief="flat", padx=18, pady=12, state="disabled")
+        self.stop_button = self.action_button(controls, "■  DETENER", self.stop,
+                                              "#34445B", WHITE, enabled=False)
         self.stop_button.pack(side="left", fill="x", expand=True, padx=(8, 0))
 
         metrics = tk.Frame(self.root, bg=BG)
@@ -120,6 +122,32 @@ class ArcadeGUI:
         # No graph until movement/gameplay: keep onboarding clear and compact.
         self.history.bind("<Configure>", lambda _: self.draw_history())
 
+
+    def action_button(self, parent, title, command, background, foreground, enabled=True):
+        """Custom Tk surface: avoids macOS native button colors overriding fg/bg."""
+        surface = tk.Frame(parent, bg=background, height=62, cursor="hand2" if enabled else "arrow")
+        surface.pack_propagate(False)
+        label = tk.Label(surface, text=title, bg=background,
+                         fg=foreground if enabled else MUTED,
+                         font=("Helvetica", 16, "bold"), cursor="hand2" if enabled else "arrow")
+        label.pack(fill="both", expand=True)
+        surface._label = label
+        surface._command = command
+        surface._background = background
+        surface._foreground = foreground
+        surface._enabled = enabled
+        def click(_event):
+            if surface._enabled:
+                surface._command()
+        surface.bind("<Button-1>", click)
+        label.bind("<Button-1>", click)
+        return surface
+
+    def set_button_enabled(self, button, enabled):
+        button._enabled = enabled
+        color = button._foreground if enabled else MUTED
+        button._label.config(fg=color, cursor="hand2" if enabled else "arrow")
+        button.config(cursor="hand2" if enabled else "arrow")
 
     def metric(self, parent, title, value, col):
         box = tk.Frame(parent, bg=PANEL, pady=10)
@@ -231,8 +259,8 @@ class ArcadeGUI:
         self.power_history.clear()
         self.running = True
         self.stop_flag.clear()
-        self.start_button.config(state="disabled")
-        self.stop_button.config(state="normal")
+        self.set_button_enabled(self.start_button, False)
+        self.set_button_enabled(self.stop_button, True)
         self.connection.config(text="● SIMULACIÓN" if self.is_simulation else "● CONECTANDO...", fg=GREEN if self.is_simulation else AMBER)
         self.phase_label.config(text="INICIANDO SIMULACIÓN" if self.is_simulation else "CONECTANDO TU REMO", fg=WHITE)
         self.target.config(text="No necesitas una máquina" if self.is_simulation else "Enciende el PM5 pulsando MENU")
@@ -359,8 +387,8 @@ class ArcadeGUI:
                         self.history.pack_forget()
                         self.watts.pack_forget()
                     self.running = False
-                    self.start_button.config(state="normal")
-                    self.stop_button.config(state="disabled")
+                    self.set_button_enabled(self.start_button, True)
+                    self.set_button_enabled(self.stop_button, False)
         except queue.Empty:
             pass
         if self.stream is not None and self.running:

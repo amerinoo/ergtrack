@@ -276,9 +276,17 @@ async def play_game(args, stream, audio, simulator):
         print(f"Round {number}/8: wait for the sound...", flush=True)
         delay = rng.randint(8, 12)
         await rest_phase(delay, simulator, stream, args.tick)
+        instructions = {
+            "escape": f"¡Escapa! Rema fuerte, supera {baseline*1.30:.0f} vatios.",
+            "defend": f"¡Defiende! Mantén entre {baseline*.85:.0f} y {baseline*1.15:.0f} vatios.",
+            "recover": f"¡Recupera! Rema suave entre {baseline*.45:.0f} y {baseline*.75:.0f} vatios.",
+        }
+        print(instructions[kind], flush=True)
         await audio.play(kind)
-        print({"escape":"ESCAPE! Accelerate", "defend":"DEFEND! Hold steady", "recover":"RECOVER! Slow down"}[kind], flush=True)
+        await audio.speak(instructions[kind])
+        print("Tres segundos para cambiar el esfuerzo.", flush=True)
         transition = await measure(stream, 3, simulator, kind, args.tick)
+        print("Evaluando...", flush=True)
         powers = await measure(stream, 5 if kind == "escape" else 8, simulator, kind, args.tick)
         if transition is None or powers is None:
             raise RuntimeError("PM5 power updates paused during challenge; try again when readings resume (no points/lives deducted)")

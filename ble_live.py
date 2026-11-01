@@ -20,24 +20,36 @@ def u24(b):
 async def main(seconds, name, scan_seconds, scan_rounds):
     print(f"Searching for PM5 matching {name!r} ...", flush=True)
     discovered = {}
+    service_prefix = "ce060000-43e5-11e4-916c-0800200c9a66"
+
+    def on_detect(device, advertisement):
+        advertised_name = advertisement.local_name or device.name or ""
+        is_pm5 = "pm5" in advertised_name.lower() or service_prefix in [
+            uuid.lower() for uuid in advertisement.service_uuids
+        ]
+        if is_pm5:
+            discovered[device.address] = (device, advertised_name)
+
     for attempt in range(1, scan_rounds + 1):
-        found = await BleakScanner.discover(timeout=scan_seconds)
-        for device in found:
-            device_name = device.name or ""
-            if "pm5" in device_name.lower():
-                discovered[device.address] = device
-        print(f"Scan {attempt}/{scan_rounds}: {len(discovered)} PM5(s) found", flush=True)
-        for item in discovered.values():
-            print(f"  {item.name} ({item.address})", flush=True)
-        matches = [d for d in discovered.values() if name.lower() in (d.name or "").lower()]
+        # Live callback retains advertising local_name and service UUIDs;
+        # the plain BLEDevice.name used previously can be missing on macOS.
+        async with BleakScanner(detection_callback=on_detect):
+            await asyncio.sleep(scan_seconds)
+        print(f"Scan {attempt}/{scan_rounds}: {len(discovered)} PM5 candidate(s) seen", flush=True)
+        for device, advertised_name in discovered.values():
+            print(f"  {advertised_name or '(unnamed PM5)'} ({device.address})", flush=True)
+        matches = [
+            device for device, advertised_name in discovered.values()
+            if name.lower() in advertised_name.lower()
+        ]
         if matches:
             break
-        print("Target not seen; press Menu on the PM5 and keep it awake.", flush=True)
+        print("Target not seen; press Menu on the target PM5 and keep it awake.", flush=True)
     else:
         print(f"No PM5 matched {name!r} after {scan_rounds} scans.")
         return
     if len(matches) > 1:
-        print("Multiple PM5s match: specify --name with the monitor number to avoid selecting the wrong machine.")
+        print("Multiple PM5s match; pass a unique monitor number with --name.")
         return
     device = matches[0]
     print(f"Connecting: {device.name} ({device.address})", flush=True)
@@ -65,7 +77,7 @@ async def main(seconds, name, scan_seconds, scan_rounds):
             print(f"{suffix} raw={b.hex(' ')}", flush=True)
 
     async with BleakClient(device, timeout=20) as client:
-        print("Connected. Subscribing to 0x31/0x32/0x35/0x36; row for a few strokes.", flush=True)
+        print("Connected. Subscribing to 0x31/0x32/0x35/0x36; row or ski for a few strokes.", flush=True)
         active = []
         for uuid in (GENERAL, ADDITIONAL, STROKE, STROKE_POWER):
             try:

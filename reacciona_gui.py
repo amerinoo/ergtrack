@@ -74,7 +74,7 @@ class ArcadeGUI:
         self.baseline_entry.insert(0, str(int(saved or 112)))
         self.baseline_entry.grid(row=1, column=1, padx=(0, 20), sticky="w")
         self.auto_calibrate = tk.BooleanVar(value=False)
-        tk.Checkbutton(config, text="Calibrar con 45 remadas", variable=self.auto_calibrate,
+        tk.Checkbutton(config, text="Medir referencia (45 muestras)", variable=self.auto_calibrate,
                        bg=PANEL, fg=WHITE, selectcolor=BG, activebackground=PANEL,
                        activeforeground=WHITE).grid(row=2, column=1, columnspan=2, sticky="w", pady=(8, 0))
         self.label(config, "Filtro PM5 (opcional)", 11, MUTED).grid(row=0, column=2, sticky="w")
@@ -333,6 +333,11 @@ class ArcadeGUI:
             self.watts.pack(pady=(0, 2), before=self.history)
             self.baseline = value["baseline"]
             self.target.config(text="Objetivo de espera: %d–%d W" % (self.baseline*.85, self.baseline*1.15))
+        elif event == "calibration":
+            self.phase = "calibration"
+            self.phase_label.config(text="REMA A RITMO CÓMODO", fg=WHITE)
+            self.feedback.config(text=f"CALIBRANDO · {value['samples']}/45", fg=CYAN)
+            self.target.config(text="Mantén un esfuerzo natural y constante")
         elif event == "rest":
             self.phase = "rest"
             self.active_kind = "rest"

@@ -179,7 +179,7 @@ async def rest_phase(seconds, simulator, stream, interval):
     else:
         await asyncio.sleep(seconds)
 
-async def calibrate(stream, simulator, interval, wait_timeout=90):
+async def calibrate(stream, simulator, interval, wait_timeout=90, on_progress=None):
     """Wait for actual movement before starting the calibration clock."""
     print("Preparado. Empieza a remar a ritmo cómodo para iniciar la calibración.", flush=True)
     if simulator:
@@ -207,6 +207,8 @@ async def calibrate(stream, simulator, interval, wait_timeout=90):
         power = stream.recent_power(now)
         if power is not None and power >= 15:
             readings.append(power)
+        if on_progress:
+            on_progress(len(readings))
         if len(readings) >= 45:
             return statistics.median(readings[15:])
         if (index + 1) % 15 == 0:
@@ -244,7 +246,8 @@ async def resolve_baseline(args, stream, simulator):
             print(f"Reutilizando referencia guardada: {saved:.0f} W. Usa --recalibrate para medir de nuevo.", flush=True)
             return saved
     print("CALIBRACIÓN: mantén un esfuerzo cómodo durante 45 muestras válidas.", flush=True)
-    baseline = await calibrate(stream, simulator, args.tick)
+    baseline = await calibrate(stream, simulator, args.tick,
+                               on_progress=lambda n: emit(args, "calibration", samples=n))
     if not simulator:
         save_baseline(args.calibration_file, baseline)
         print(f"Referencia guardada en {args.calibration_file}.", flush=True)

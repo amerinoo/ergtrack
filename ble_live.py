@@ -12,6 +12,7 @@ BASE = "-43e5-11e4-916c-0800200c9a66"
 GENERAL = "ce060031" + BASE
 ADDITIONAL = "ce060032" + BASE
 STROKE = "ce060035" + BASE
+STROKE_POWER = "ce060036" + BASE
 
 def u24(b):
     return int.from_bytes(b, "little")
@@ -42,13 +43,16 @@ async def main(seconds):
             speed = int.from_bytes(b[3:5], "little") / 1000
             cadence = b[5]
             print(f"ADDITIONAL speed={speed:.3f}m/s cadence={cadence}spm raw={b.hex(' ')}", flush=True)
+        elif suffix == "ce060036" and len(b) >= 5:
+            watts = int.from_bytes(b[3:5], "little")
+            print(f"STROKE_POWER watts={watts}W raw={b.hex(' ')}", flush=True)
         else:
             print(f"{suffix} raw={b.hex(' ')}", flush=True)
 
     async with BleakClient(device, timeout=20) as client:
-        print("Connected. Subscribing to 0x31/0x32/0x35; row for a few strokes.", flush=True)
+        print("Connected. Subscribing to 0x31/0x32/0x35/0x36; row for a few strokes.", flush=True)
         active = []
-        for uuid in (GENERAL, ADDITIONAL, STROKE):
+        for uuid in (GENERAL, ADDITIONAL, STROKE, STROKE_POWER):
             try:
                 await client.start_notify(uuid, callback)
                 active.append(uuid)

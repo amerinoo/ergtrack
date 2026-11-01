@@ -435,7 +435,7 @@ class ArcadeGUI:
         if self.running:
             self.stop_flag.set()
             self.status.config(text="Deteniendo al terminar la fase actual…")
-            self.stop_button.config(state="disabled")
+            self.set_button_enabled(self.stop_button, False)
 
     def close(self):
         self.stop_flag.set()

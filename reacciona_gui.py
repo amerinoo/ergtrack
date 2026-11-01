@@ -127,7 +127,7 @@ class ArcadeGUI:
         return number
 
     def draw_gauge(self):
-        """Continuous blue effort bar with a centered green target window."""
+        """Barra azul creciente, con objetivo verde fijo y bien visible."""
         canvas = self.gauge
         canvas.delete("all")
         width = max(80, canvas.winfo_width())
@@ -136,29 +136,33 @@ class ArcadeGUI:
         if lo is None:
             lo, hi = self.baseline * .85, self.baseline * 1.15
         visual_hi = hi if hi is not None else lo * 1.15
-        midpoint = (lo + visual_hi) / 2
-        half_width = max(1, (visual_hi - lo) / 2)
-        visible_range = half_width * 3.2
+        center = (lo + visual_hi) / 2
+        half = max(1.0, (visual_hi - lo) / 2)
+        # Fixed scale for each goal: the green zone stays near the middle.
+        maximum = max(center + 3.2 * half, visual_hi * 1.15)
+        minimum = max(0.0, 2 * center - maximum)
 
-        def position(watts):
-            ratio = .5 + (watts - midpoint) / (2 * visible_range)
-            return 16 + (width - 32) * max(0, min(1, ratio))
+        def position(value):
+            fraction = (value - minimum) / max(1.0, maximum - minimum)
+            return 16 + (width - 32) * max(0.0, min(1.0, fraction))
 
         top, bottom = 28, height - 42
         left, right = position(lo), position(visual_hi)
-        # Solid Concept2-like blue lane: target is an overlay, not a separate gauge.
-        canvas.create_rectangle(16, top, width - 16, bottom, fill=CYAN, outline="")
+        # Background and target corridor always visible, even before rowing.
+        canvas.create_rectangle(16, top, width - 16, bottom, fill="#34445B", outline="")
         canvas.create_rectangle(left, top, right, bottom, fill="#29956B", outline="")
-        canvas.create_line(left, top - 4, left, bottom + 4, fill=GREEN, width=3)
-        if hi is not None:
-            canvas.create_line(right, top - 4, right, bottom + 4, fill=GREEN, width=3)
+        # The blue fill grows from left to right with the smoothed power.
         if self.gauge_value is not None:
-            marker = position(self.gauge_value)
-            canvas.create_line(marker, top - 12, marker, bottom + 12, fill=WHITE, width=7)
-            canvas.create_oval(marker - 10, (top + bottom) / 2 - 10,
-                               marker + 10, (top + bottom) / 2 + 10,
-                               fill=WHITE, outline="")
-        canvas.create_text(width / 2, height - 16, text="ZONA VERDE = OBJETIVO",
+            end = position(self.gauge_value)
+            if end > 16:
+                canvas.create_rectangle(16, top + 10, end, bottom - 10,
+                                        fill=CYAN, outline="")
+            canvas.create_line(end, top - 7, end, bottom + 7, fill=WHITE, width=4)
+        # Target borders remain clear over the blue fill.
+        canvas.create_line(left, top - 5, left, bottom + 5, fill=GREEN, width=4)
+        if hi is not None:
+            canvas.create_line(right, top - 5, right, bottom + 5, fill=GREEN, width=4)
+        canvas.create_text(width / 2, height - 16, text="LLEVA EL AZUL HASTA LA ZONA VERDE",
                            fill=GREEN, font=("Helvetica", 12, "bold"))
 
     def draw_history(self):

@@ -84,22 +84,22 @@ class ArcadeGUI:
         panel.pack(fill="both", expand=True, padx=28, pady=5)
         self.round_label = self.label(panel, "PREPARADO · 0/3", 15, MUTED, True)
         self.round_label.pack(pady=(0, 3))
-        self.phase_label = self.label(panel, "1. SIÉNTATE EN EL REMO", 33, WHITE, True, wraplength=850)
-        self.phase_label.pack(pady=(3, 3))
-        self.target = self.label(panel, "2. Pulsa MENU en el PM5 para encenderlo", 19, CYAN, True)
-        self.target.pack(pady=(0, 3))
-        self.watts = self.label(panel, "— W", 32, WHITE, True)
+        self.phase_label = self.label(panel, "1. SIÉNTATE EN EL REMO", 20, WHITE, True, wraplength=850)
+        self.phase_label.pack(pady=(1, 2))
+        self.target = self.label(panel, "2. Pulsa MENU en el PM5 para encenderlo", 14, CYAN, True)
+        self.target.pack(pady=(0, 2))
+        self.watts = self.label(panel, "— W", 16, MUTED, True)
         self.watts.pack(pady=(0, 2))
-        self.feedback = self.label(panel, "3. Pulsa CONECTAR para empezar", 24, MUTED, True)
-        self.feedback.pack()
+        self.feedback = self.label(panel, "3. Pulsa CONECTAR para empezar", 39, WHITE, True, wraplength=840)
+        self.feedback.pack(before=self.target, pady=(3, 7))
         self.gauge = tk.Canvas(panel, height=260, bg="#34445B", highlightthickness=0)
         # Mantener el gauge anterior fuera de la vista: el gráfico histórico es el principal.
         # self.gauge.pack(fill="x", pady=(12, 4))
         self.gauge.bind("<Configure>", lambda _: self.draw_gauge())
         self.gauge_value = None
         self.status = self.label(panel, "Conecta el PM5 y empieza a remar", 14, MUTED, wraplength=660)
-        self.status.pack(pady=(4, 8))
-        self.history = tk.Canvas(panel, height=280, bg="#172235", highlightthickness=0)
+        self.status.pack(pady=(2, 5))
+        self.history = tk.Canvas(panel, height=340, bg="#172235", highlightthickness=0)
         self.history.pack(fill="both", expand=True, pady=(12, 6))
         self.history.bind("<Configure>", lambda _: self.draw_history())
 
@@ -197,13 +197,13 @@ class ArcadeGUI:
                 if x >= 12:
                     coords.extend((x, y(power)))
             if len(coords) >= 4:
-                canvas.create_line(*coords, fill="#07354C", width=13, smooth=True,
+                canvas.create_line(*coords, fill="#07354C", width=29, smooth=True,
                                    capstyle=tk.ROUND, joinstyle=tk.ROUND)
-                canvas.create_line(*coords, fill=CYAN, width=8, smooth=True,
+                canvas.create_line(*coords, fill=CYAN, width=20, smooth=True,
                                    capstyle=tk.ROUND, joinstyle=tk.ROUND)
                 x, current_y = coords[-2], coords[-1]
-                canvas.create_oval(x - 9, current_y - 9, x + 9, current_y + 9,
-                                   fill=WHITE, outline=CYAN, width=3)
+                canvas.create_oval(x - 17, current_y - 17, x + 17, current_y + 17,
+                                   fill=WHITE, outline=CYAN, width=5)
 
     def start(self):
         if self.running:
@@ -283,6 +283,7 @@ class ArcadeGUI:
         if event == "start":
             self.phase = "playing"
             self.config_panel.pack_forget()
+            self.status.pack_forget()
             self.baseline = value["baseline"]
             self.target.config(text="Objetivo de espera: %d–%d W" % (self.baseline*.85, self.baseline*1.15))
         elif event == "rest":
@@ -290,7 +291,7 @@ class ArcadeGUI:
             self.active_kind = "rest"
             self.current_bounds = (value["low"], value["high"])
             self.round_label.config(text=f"RONDA {value['round']}/{value['rounds']}")
-            self.phase_label.config(text="REMA A RITMO CÓMODO", fg=WHITE)
+            self.phase_label.config(text="MANTÉN EL RITMO", fg=MUTED)
             self.target.config(text=f"Objetivo: {value['low']:.0f}–{value['high']:.0f} W")
             self.status.config(text="Mantén este intervalo hasta escuchar la señal")
         elif event == "challenge":
@@ -302,22 +303,25 @@ class ArcadeGUI:
             goal = f"Más de {value['low']:.0f} W" if value["high"] is None else f"{value['low']:.0f}–{value['high']:.0f} W"
             self.target.config(text="Objetivo: " + goal)
         elif event == "countdown":
-            self.status.config(text=f"CAMBIA DE RITMO · {value['value']}")
+            self.phase_label.config(text=f"PREPÁRATE · {value['value']}", fg=AMBER)
         elif event == "evaluating":
             self.phase = "evaluating"
-            self.status.config(text=f"Evaluando durante {value['seconds']} muestras…")
+            self.phase_label.config(text="MANTÉN EL ESFUERZO", fg=MUTED)
         elif event == "result":
             self.phase = "result"
             self.points.config(text=str(value["points"]))
             self.lives.config(text=str(value["lives"]))
             self.shield.config(text=str(value["shield"]))
             self.streak.config(text=str(value["streak"]))
-            self.phase_label.config(text="¡ACIERTO!" if value["valid"] else "NO CONSEGUIDO", fg=GREEN if value["valid"] else RED)
+            self.phase_label.config(text="RESULTADO", fg=MUTED)
+            self.feedback.config(text="¡CONSEGUIDO!" if value["valid"] else "SIGUE INTENTÁNDOLO", fg=GREEN if value["valid"] else RED)
             extras = (" +25 excelencia" if value["excellent"] else "") + (" +50 racha" if value["valid"] and value["streak"] % 3 == 0 else "")
             self.status.config(text=f"{value['hits']}/{value['samples']} muestras correctas · +{value['earned']} puntos" + extras)
         elif event == "finished":
             self.phase = "finished"
-            self.phase_label.config(text="PARTIDA TERMINADA", fg=GREEN)
+            self.phase_label.config(text="FIN DE LA PARTIDA", fg=MUTED)
+            self.feedback.config(text=f"¡{value['points']} PUNTOS!", fg=GREEN)
+            self.status.pack(pady=(2, 5), before=self.history)
             self.status.config(text=f"{value['points']} puntos · {value['successes']}/{value['attempts']} desafíos superados")
 
     def poll(self):
@@ -335,6 +339,8 @@ class ArcadeGUI:
                     self.connection.config(text="● " + data, fg=GREEN)
                 elif kind == "error":
                     self.status.config(text="Error: " + data)
+                    if not self.status.winfo_manager():
+                        self.status.pack(pady=(2, 5), before=self.history)
                     self.connection.config(text="● ERROR", fg=RED)
                 elif kind == "done":
                     if self.phase not in ("finished", "error"):
@@ -362,7 +368,7 @@ class ArcadeGUI:
             shown = self.last_watts
             fresh = shown is not None and now - self.last_visual_rx <= 4
             self.gauge_value = self.smoothed_watts
-            self.watts.config(text=f"{shown:.0f} W" if shown is not None else "— W",
+            self.watts.config(text=f"Potencia · {shown:.0f} W" if shown is not None else "Potencia · — W",
                               fg=WHITE if fresh else MUTED)
             lo, hi = self.current_bounds
             if self.phase in ("playing", "rest", "challenge", "evaluating"):

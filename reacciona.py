@@ -61,9 +61,24 @@ class PM5:
                 await asyncio.sleep(15)
             if matches:
                 break
-        if len(matches) != 1:
-            raise RuntimeError(f"Expected one PM5, found {len(matches)}; use --name SERIAL")
-        device, label = next(iter(matches.values()))
+        if not matches:
+            raise RuntimeError("No PM5 found. Wake the monitor with Menu and try again.")
+        devices = sorted(matches.values(), key=lambda item: item[1])
+        if len(devices) == 1:
+            device, label = devices[0]
+            print(f"Found one PM5: {label}. Selecting automatically.", flush=True)
+        else:
+            print("Several PM5 monitors found:", flush=True)
+            for index, (_, label) in enumerate(devices, 1):
+                print(f"  {index}. {label}", flush=True)
+            while True:
+                choice = input(f"Choose PM5 [1-{len(devices)}], or q to cancel: ").strip()
+                if choice.lower() == "q":
+                    raise RuntimeError("Selection cancelled")
+                if choice.isdigit() and 1 <= int(choice) <= len(devices):
+                    device, label = devices[int(choice) - 1]
+                    break
+                print("Invalid option.", flush=True)
         print(f"Connecting to {label}", flush=True)
         self.client = BleakClient(device, timeout=30)
         await self.client.connect()

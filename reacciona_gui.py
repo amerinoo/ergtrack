@@ -36,6 +36,8 @@ class ArcadeGUI:
         self.active_kind = "rest"
         self.baseline = 112.0
         self.stream = None
+        self.last_watts = None
+        self.last_watts_at = 0.0
         self.build()
         root.after(100, self.poll)
         root.protocol("WM_DELETE_WINDOW", self.close)
@@ -81,7 +83,7 @@ class ArcadeGUI:
         self.watts.pack(pady=(0, 3))
         self.feedback = self.label(panel, "Sin datos de potencia", 16, MUTED, True)
         self.feedback.pack()
-        self.gauge = tk.Canvas(panel, height=20, bg="#34445B", highlightthickness=0)
+        self.gauge = tk.Canvas(panel, height=54, bg="#34445B", highlightthickness=0)
         self.gauge.pack(fill="x", pady=(18, 10))
         self.gauge.bind("<Configure>", lambda _: self.draw_gauge())
         self.gauge_value = None
@@ -113,11 +115,22 @@ class ArcadeGUI:
 
     def draw_gauge(self):
         self.gauge.delete("all")
-        width = max(1, self.gauge.winfo_width())
-        if self.gauge_value is None:
-            return
-        fill = max(0, min(1, self.gauge_value / max(300, self.baseline * 2.5)))
-        self.gauge.create_rectangle(0, 0, width * fill, 20, fill=CYAN, outline="")
+        width = max(40, self.gauge.winfo_width())
+        lo, hi = self.current_bounds
+        lo = lo if lo is not None else self.baseline * .85
+        hi = hi if hi is not None else lo * 1.6
+        scale = max(150, hi * 1.35, (self.gauge_value or 0) * 1.08)
+        x = lambda w: 12 + (width - 24) * max(0, min(1, w / scale))
+        self.gauge.create_rectangle(12, 12, width - 12, 31, fill="#34445B", outline="")
+        self.gauge.create_rectangle(x(lo), 12, x(hi), 31, fill="#29956B", outline="")
+        if self.gauge_value is not None:
+            p = x(self.gauge_value)
+            self.gauge.create_line(p, 5, p, 36, fill=WHITE, width=4)
+        self.gauge.create_text(12, 47, text="0 W", anchor="w", fill=MUTED)
+        self.gauge.create_text(width - 12, 47, text=f"{scale:.0f} W", anchor="e", fill=MUTED)
+        self.gauge.create_text(x(lo), 47, text=f"{lo:.0f}", fill=GREEN)
+        if x(hi) - x(lo) > 45:
+            self.gauge.create_text(x(hi), 47, text=f"{hi:.0f}", fill=GREEN)
 
     def start(self):
         if self.running:
@@ -226,19 +239,26 @@ class ArcadeGUI:
         except queue.Empty:
             pass
         if self.stream is not None and self.running:
-            watts = self.stream.recent_power(time.monotonic())
-            self.gauge_value = watts
-            self.watts.config(text=f"{watts:.0f} W" if watts is not None else "— W")
+            now = time.monotonic()
+            watts = self.stream.recent_power(now)
+            if watts is not None:
+                self.last_watts = watts
+                self.last_watts_at = now
+            shown = self.last_watts
+            self.gauge_value = shown
+            self.watts.config(text=f"{shown:.0f} W" if shown is not None else "— W",
+                              fg=WHITE if watts is not None else MUTED)
             lo, hi = self.current_bounds
-            if watts is None:
-                self.feedback.config(text="Esperando potencia", fg=MUTED)
-            elif lo is not None:
-                if watts < lo:
-                    self.feedback.config(text="Por debajo del objetivo", fg=AMBER)
-                elif hi is not None and watts > hi:
-                    self.feedback.config(text="Por encima del objetivo", fg=RED)
-                else:
-                    self.feedback.config(text="Dentro del objetivo", fg=GREEN)
+            if shown is None:
+                self.feedback.config(text="Esperando la primera remada", fg=MUTED)
+            elif watts is None:
+                self.feedback.config(text=f"Última lectura hace {now-self.last_watts_at:.0f} s", fg=AMBER)
+            elif lo is not None and shown < lo:
+                self.feedback.config(text=f"SUBE {lo-shown:.0f} W", fg=AMBER)
+            elif hi is not None and shown > hi:
+                self.feedback.config(text=f"BAJA {shown-hi:.0f} W", fg=RED)
+            else:
+                self.feedback.config(text="¡DENTRO DEL OBJETIVO!", fg=GREEN)
             self.draw_gauge()
         self.root.after(100, self.poll)
 

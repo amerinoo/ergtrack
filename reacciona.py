@@ -278,12 +278,16 @@ async def play_game(args, stream, audio, simulator):
     started = time.monotonic()
     await audio.play("ready")
     for number, kind in enumerate(events, 1):
+        if getattr(args, "should_stop", lambda: False)():
+            break
         if not score.lives:
             break
         emit(args, "rest", round=number, rounds=args.rounds, low=baseline*.85, high=baseline*1.15)
         print(f"Ronda {number}/{args.rounds}: mantén {baseline*.85:.0f}-{baseline*1.15:.0f} W y espera la señal.", flush=True)
         delay = rng.randint(8, 12)
         await rest_phase(delay, simulator, stream, args.tick)
+        if getattr(args, "should_stop", lambda: False)():
+            break
         instructions = {
             "escape": f"¡Escapa! Rema fuerte, supera {baseline*1.30:.0f} vatios.",
             "defend": f"¡Defiende! Mantén entre {baseline*.85:.0f} y {baseline*1.15:.0f} vatios.",

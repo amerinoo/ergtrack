@@ -48,7 +48,7 @@ Calibración de 45 segundos a esfuerzo cómodo. Se toma la mediana de los últim
 
 Puntuación: 100 puntos por éxito, 25 extras por ejecución excelente y 50 por cada tercera acción correcta consecutiva. Tres vidas al inicio; fallar escape resta una vida, o consume un escudo. Dos defensas correctas cargan un escudo (máximo uno). Una acción de defensa o recuperación fallida no quita vidas.
 
-La interfaz principal es audio generado localmente y mensajes en el terminal. Se guarda la partida en `reacciona-last-session.json`.
+La interfaz principal combina señales sonoras con instrucciones habladas en español mediante `say` de macOS; antes de cada desafío anuncia el tipo de esfuerzo y el objetivo en vatios, y al terminar explica el resultado. Durante la espera, sigue remando a ritmo cómodo. Los mensajes del terminal incluyen las muestras que cumplieron el objetivo. Se guarda la partida en `reacciona-last-session.json`.
 
 ## Limitaciones de esta versión
 

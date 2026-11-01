@@ -273,7 +273,7 @@ async def play_game(args, stream, audio, simulator):
     for number, kind in enumerate(events, 1):
         if not score.lives:
             break
-        print(f"Round {number}/8: wait for the sound...", flush=True)
+        print(f"Ronda {number}/8: rema cómodo y espera la señal.", flush=True)
         delay = rng.randint(8, 12)
         await rest_phase(delay, simulator, stream, args.tick)
         instructions = {
@@ -293,6 +293,11 @@ async def play_game(args, stream, audio, simulator):
         valid, excellent = judge(kind, powers, baseline)
         reward = score.apply(kind, valid, excellent if valid else False)
         await audio.play("success" if valid else "fail")
+        lo, hi = {"escape": (baseline * 1.30, None), "defend": (baseline * .85, baseline * 1.15), "recover": (baseline * .45, baseline * .75)}[kind]
+        hits = sum(p >= lo if hi is None else lo <= p <= hi for p in powers)
+        goal = f"mínimo {lo:.0f} W" if hi is None else f"{lo:.0f}-{hi:.0f} W"
+        print(f"Resultado: {hits}/{len(powers)} muestras dentro del objetivo ({goal}); media {statistics.mean(powers):.0f} W.", flush=True)
+        await audio.speak("¡Conseguido! Ganas puntos. Vuelve al ritmo cómodo." if valid else "No conseguido. Vuelve al ritmo cómodo para la próxima ronda.")
         if reward["shield_gained"]:
             await audio.play("shield")
         log.append({"round":number, "event":kind, "valid":valid, "excellent":excellent if valid else False,
@@ -320,7 +325,7 @@ async def main(args):
                 elif metric.kind == "general":
                     stream.distance = metric.distance_m
             async with PM5Connection(on_metric, args.name):
-                print("Connected. Begin calibration.")
+                print("Conectado. Preparando partida.")
                 await play_game(args, stream, audio, None)
     finally:
         audio.close()

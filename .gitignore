@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+scan-*.jsonl
+*.log
+.DS_Store

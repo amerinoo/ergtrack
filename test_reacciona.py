@@ -1,5 +1,6 @@
 import unittest
 from reacciona import MetricStream, Score, judge
+from pm5_ble import GENERAL, ADDITIONAL, POWER, decode_notification
 
 class GameTests(unittest.TestCase):
     def test_escape_judgement(self):
@@ -27,6 +28,19 @@ class GameTests(unittest.TestCase):
         self.assertEqual(score.apply("recover", True)["earned"], 100)
         self.assertEqual(score.apply("recover", True)["earned"], 100)
         self.assertEqual(score.apply("recover", True)["earned"], 150)
+
+    def test_ble_packet_decoding(self):
+        general = bytearray(19)
+        general[:3] = (1234).to_bytes(3, "little")
+        general[3:6] = (1543).to_bytes(3, "little")
+        general[18] = 100
+        metric = decode_notification(GENERAL, general, 12)
+        self.assertEqual(metric.distance_m, 154.3)
+        self.assertEqual(metric.drag_factor, 100)
+        power = decode_notification(POWER, bytes([0,0,0,220,0]), 13)
+        self.assertEqual(power.watts, 220)
+        self.assertEqual(decode_notification(ADDITIONAL, bytes([0,0,0,0,0,24]), 14).cadence_spm,24)
+        self.assertIsNone(decode_notification(POWER, b"\\x00"))
 
     def test_stale_data(self):
         stream = MetricStream()

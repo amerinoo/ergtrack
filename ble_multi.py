@@ -52,10 +52,20 @@ async def monitor(device, seconds, state):
     except Exception as exc:
         print(f"ERROR {name} [{key}]: {type(exc).__name__}: {exc}", flush=True)
 
-async def run(count, seconds):
+async def run(count, seconds, scan_seconds, scan_rounds):
     print("Wake the PM5 monitors with Menu; scanning...", flush=True)
-    found = await BleakScanner.discover(timeout=12)
-    devices = [x for x in found if "pm5" in (x.name or "").lower()]
+    known = {}
+    for attempt in range(1, scan_rounds + 1):
+        found = await BleakScanner.discover(timeout=scan_seconds)
+        for device in found:
+            if "pm5" in (device.name or "").lower():
+                known[device.address] = device
+        print(f"Scan {attempt}/{scan_rounds}: {len(known)} unique named PM5(s) seen", flush=True)
+        if len(known) >= count:
+            break
+        if attempt < scan_rounds:
+            print("Still searching; wake missing PM5s with Menu (no rowing required).", flush=True)
+    devices = list(known.values())
     print(f"Found {len(devices)} named PM5(s):")
     for dev in devices:
         print(f"  {dev.name} ({dev.address})")
@@ -86,7 +96,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--count", type=int, default=2)
     parser.add_argument("--seconds", type=int, default=60)
+    parser.add_argument("--scan-seconds", type=int, default=20, help="Duration of each discovery scan")
+    parser.add_argument("--scan-rounds", type=int, default=3, help="Maximum discovery attempts")
     opts = parser.parse_args()
-    if opts.count < 1 or opts.seconds < 1:
+    if min(opts.count, opts.seconds, opts.scan_seconds, opts.scan_rounds) < 1:
         parser.error("--count and --seconds must be positive")
-    raise SystemExit(asyncio.run(run(opts.count, opts.seconds)))
+    raise SystemExit(asyncio.run(run(opts.count, opts.seconds, opts.scan_seconds, opts.scan_rounds)))

@@ -304,9 +304,9 @@ class ArcadeGUI:
         self.set_button_enabled(self.start_button, False)
         self.set_button_enabled(self.calibrate_button, False)
         self.set_button_enabled(self.stop_button, True)
-        threading.Thread(target=self.calibration_worker, args=(self.is_simulation,), daemon=True).start()
+        threading.Thread(target=self.calibration_worker, args=(self.is_simulation, self.pm5_name.get().strip()), daemon=True).start()
 
-    def calibration_worker(self, simulated):
+    def calibration_worker(self, simulated, pm5_name):
         async def work():
             stream = MetricStream()
             self.stream = stream
@@ -324,7 +324,7 @@ class ArcadeGUI:
                 def on_metric(metric):
                     if metric.kind == "power":
                         stream.update(metric.watts, metric.received_at)
-                async with PM5Connection(on_metric, self.pm5_name.get().strip(), interactive=False):
+                async with PM5Connection(on_metric, pm5_name, interactive=False):
                     self.messages.put(("connected", "PM5 CONECTADO"))
                     await run_calibration(None)
         try:
@@ -441,6 +441,18 @@ class ArcadeGUI:
                     self.phase_label.config(text="¡EMPIEZA A REMAR!" if data == "movement" else "¡TODO LISTO!", fg=GREEN)
                     self.target.config(text="Rema suavemente para comprobar la conexión" if data == "movement" else "La partida empieza ahora")
                     self.feedback.config(text="Detectaremos tu primera remada automáticamente" if data == "movement" else "ESCAPA = fuerte · DEFIENDE = constante · RECUPERA = suave", fg=WHITE)
+                elif kind == "calibration_progress":
+                    if self.phase == "calibration":
+                        self.feedback.config(text=f"MIDIENDO · {data}/45 MUESTRAS", fg=CYAN)
+                elif kind == "calibration_result":
+                    self.phase = "calibration_done"
+                    self.baseline_entry.delete(0, "end")
+                    self.baseline_entry.insert(0, f"{data:.0f}")
+                    self.baseline = data
+                    self.phase_label.config(text="REFERENCIA MEDIDA", fg=GREEN)
+                    self.feedback.config(text=f"{data:.0f} W", fg=WHITE, font=("Helvetica", 52, "bold"))
+                    self.target.config(text="Ya puedes iniciar una partida con este valor")
+                    self.status.config(text="Medición completada. El juego no se ha iniciado.")
                 elif kind == "connected":
                     self.connection.config(text="● " + data, fg=GREEN)
                 elif kind == "error":
@@ -449,7 +461,7 @@ class ArcadeGUI:
                         self.status.pack(pady=(2, 5), before=self.history)
                     self.connection.config(text="● ERROR", fg=RED)
                 elif kind == "done":
-                    if self.phase not in ("finished", "error"):
+                    if self.phase not in ("finished", "error", "calibration_done"):
                         self.phase = "setup"
                     self.config_panel.pack(fill="x", padx=28, pady=(0, 12), before=self.game_panel)
                     if self.phase == "setup":

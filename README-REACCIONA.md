@@ -27,7 +27,7 @@ python reacciona.py --simulate
 python reacciona.py
 
 # Pruebas rápidas: usa los 112 W ya medidos, sin calibrar
-python reacciona.py --baseline 112
+python reacciona.py --baseline 112 --rounds 3
 
 # Forzar una nueva calibración y guardarla
 python reacciona.py --recalibrate
@@ -44,11 +44,11 @@ La primera partida real sin configuración guarda la referencia en `.reacciona-c
 
 ## Mecánicas
 
-Calibración de 45 segundos a esfuerzo cómodo. Se toma la mediana de los últimos 30 segundos como potencia de referencia. Hay ocho eventos en orden aleatorio: tres **escape** (acelerar al menos al 130% del valor de referencia), tres **defend** (mantenerse entre 85–115%) y dos **recover** (bajar al 45–75%). Cada evento concede tres segundos de transición. Se evalúan cinco segundos en escape u ocho en los otros dos.
+Calibración de 45 segundos a esfuerzo cómodo. Se toma la mediana de los últimos 30 segundos como potencia de referencia. Los eventos se eligen aleatoriamente según el número de rondas (evitando dos escapes consecutivos): **escape** (acelerar al menos al 130% del valor de referencia), **defend** (mantenerse entre 85–115%) y **recover** (bajar al 45–75%). Cada evento concede tres segundos de transición. Se evalúan cinco segundos en escape u ocho en los otros dos.
 
 Puntuación: 100 puntos por éxito, 25 extras por ejecución excelente y 50 por cada tercera acción correcta consecutiva. Tres vidas al inicio; fallar escape resta una vida, o consume un escudo. Dos defensas correctas cargan un escudo (máximo uno). Una acción de defensa o recuperación fallida no quita vidas.
 
-La interfaz principal combina señales sonoras con instrucciones habladas en español mediante `say` de macOS; antes de cada desafío anuncia el tipo de esfuerzo y el objetivo en vatios, y al terminar explica el resultado. Durante la espera, sigue remando a ritmo cómodo. Los mensajes del terminal incluyen las muestras que cumplieron el objetivo. Se guarda la partida en `reacciona-last-session.json`.
+La voz está desactivada: se utilizan señales sonoras y una cuenta atrás de tres pitidos, y el terminal muestra instrucciones y explicación de los puntos. Durante la espera, mantén el 85–115% de la referencia. El número de rondas se controla con `--rounds N` (1–20; por defecto 3). Los resultados muestran cuántas muestras cumplen el objetivo. Se guarda la partida en `reacciona-last-session.json`.
 
 ## Limitaciones de esta versión
 

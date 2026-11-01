@@ -127,34 +127,39 @@ class ArcadeGUI:
         return number
 
     def draw_gauge(self):
-        """Zona verde centrada: la aguja se desplaza según el esfuerzo."""
-        self.gauge.delete("all")
-        width = max(80, self.gauge.winfo_width())
+        """Continuous blue effort bar with a centered green target window."""
+        canvas = self.gauge
+        canvas.delete("all")
+        width = max(80, canvas.winfo_width())
+        height = max(160, canvas.winfo_height())
         lo, hi = self.current_bounds
         if lo is None:
             lo, hi = self.baseline * .85, self.baseline * 1.15
-        # Escape no tiene límite superior: zona visual de éxito de ancho útil.
         visual_hi = hi if hi is not None else lo * 1.15
-        center = (lo + visual_hi) / 2
-        half = max(1, (visual_hi - lo) / 2)
-        span = half * 3.2
+        midpoint = (lo + visual_hi) / 2
+        half_width = max(1, (visual_hi - lo) / 2)
+        visible_range = half_width * 3.2
+
         def position(watts):
-            relative = (watts - center) / span
-            return 16 + (width - 32) * max(0, min(1, .5 + .5 * relative))
+            ratio = .5 + (watts - midpoint) / (2 * visible_range)
+            return 16 + (width - 32) * max(0, min(1, ratio))
+
+        top, bottom = 28, height - 42
         left, right = position(lo), position(visual_hi)
-        height = max(160, self.gauge.winfo_height())
-        top, bottom = 30, height - 42
-        self.gauge.create_rectangle(16, top, width - 16, bottom, fill="#34445B", outline="")
-        self.gauge.create_rectangle(left, top, right, bottom, fill="#29956B", outline="")
-        self.gauge.create_line(left, top-6, left, bottom+6, fill=GREEN, width=3)
+        # Solid Concept2-like blue lane: target is an overlay, not a separate gauge.
+        canvas.create_rectangle(16, top, width - 16, bottom, fill=CYAN, outline="")
+        canvas.create_rectangle(left, top, right, bottom, fill="#29956B", outline="")
+        canvas.create_line(left, top - 4, left, bottom + 4, fill=GREEN, width=3)
         if hi is not None:
-            self.gauge.create_line(right, top-6, right, bottom+6, fill=GREEN, width=3)
+            canvas.create_line(right, top - 4, right, bottom + 4, fill=GREEN, width=3)
         if self.gauge_value is not None:
-            x = position(self.gauge_value)
-            self.gauge.create_line(x, top-13, x, bottom+13, fill=WHITE, width=7)
-            self.gauge.create_oval(x - 10, (top+bottom)/2-10, x + 10, (top+bottom)/2+10, fill=WHITE, outline="")
-        self.gauge.create_text(width / 2, height - 17, text="ZONA OBJETIVO", fill=GREEN,
-                               font=("Helvetica", 11, "bold"))
+            marker = position(self.gauge_value)
+            canvas.create_line(marker, top - 12, marker, bottom + 12, fill=WHITE, width=7)
+            canvas.create_oval(marker - 10, (top + bottom) / 2 - 10,
+                               marker + 10, (top + bottom) / 2 + 10,
+                               fill=WHITE, outline="")
+        canvas.create_text(width / 2, height - 16, text="ZONA VERDE = OBJETIVO",
+                           fill=GREEN, font=("Helvetica", 12, "bold"))
 
     def draw_history(self):
         """Trace recent effort against a shaded target corridor."""

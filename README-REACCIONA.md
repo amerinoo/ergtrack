@@ -16,6 +16,8 @@ python -m pip install bleak
 
 ## Interfaz gráfica en macOS
 
+La aplicación Tkinter incluye una guía de inicio: sentarse al remo, pulsar MENU en PM5, conectar y empezar a remar. La partida comienza al detectar movimiento (en modo real). La barra de esfuerzo ocupa el espacio principal, con zona objetivo fija y marcador suavizado; la simulación evita avisos falsos por relojes diferentes.
+
 La aplicación Tkinter muestra el estado de conexión del PM5, potencia en directo, objetivos, fases, cuenta atrás, rondas, puntos, vidas, escudo y racha. Permite configurar el número de rondas (1 a 20), la potencia de referencia y un filtro opcional para elegir el PM5 por nombre. Conserva los sonidos del motor y no requiere servidor.
 
 ```bash

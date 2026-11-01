@@ -254,11 +254,11 @@ class ArcadeGUI:
             elif watts is None:
                 self.feedback.config(text=f"Última lectura hace {now-self.last_watts_at:.0f} s", fg=AMBER)
             elif lo is not None and shown < lo:
-                self.feedback.config(text=f"SUBE {lo-shown:.0f} W", fg=AMBER)
+                self.feedback.config(text="¡REMA MÁS FUERTE!", fg=AMBER)
             elif hi is not None and shown > hi:
-                self.feedback.config(text=f"BAJA {shown-hi:.0f} W", fg=RED)
+                self.feedback.config(text="¡REMA MÁS SUAVE!", fg=RED)
             else:
-                self.feedback.config(text="¡DENTRO DEL OBJETIVO!", fg=GREEN)
+                self.feedback.config(text="¡ASÍ, PERFECTO!", fg=GREEN)
             self.draw_gauge()
         self.root.after(100, self.poll)
 

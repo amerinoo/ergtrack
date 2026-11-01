@@ -10,7 +10,7 @@ GENERAL = "ce060031" + BASE
 ADDITIONAL = "ce060032" + BASE
 POWER = "ce060036" + BASE
 
-async def monitor(device, seconds, state):
+async def monitor(device, seconds, state, connection_gate):
     name = device.name or "PM5"
     key = device.address[-8:]
     last_print = 0.0
@@ -41,7 +41,11 @@ async def monitor(device, seconds, state):
                   f"speed={data['speed']}m/s cadence={data['cadence']}spm "
                   f"power={data['power']}W", flush=True)
     try:
-        async with BleakClient(device, timeout=20) as client:
+        client = BleakClient(device, timeout=30)
+        async with connection_gate:
+            print(f"CONNECTING {name} [{key}]", flush=True)
+            await client.connect()
+        try:
             print(f"CONNECTED {name} [{key}]", flush=True)
             for uuid in (GENERAL, ADDITIONAL, POWER):
                 await client.start_notify(uuid, on_data)
@@ -49,6 +53,9 @@ async def monitor(device, seconds, state):
             for uuid in (GENERAL, ADDITIONAL, POWER):
                 await client.stop_notify(uuid)
             print(f"FINISHED {name} [{key}]", flush=True)
+        finally:
+            if client.is_connected:
+                await client.disconnect()
     except Exception as exc:
         print(f"ERROR {name} [{key}]: {type(exc).__name__}: {exc}", flush=True)
 
@@ -81,7 +88,8 @@ async def run(count, seconds, scan_seconds, scan_rounds):
         }
         for d in selected
     }
-    results = await asyncio.gather(*(monitor(d, seconds, state) for d in selected), return_exceptions=True)
+    connection_gate = asyncio.Semaphore(1)  # Serialize GATT connect attempts on macOS.
+    results = await asyncio.gather(*(monitor(d, seconds, state, connection_gate) for d in selected), return_exceptions=True)
     print("SUMMARY")
     for device in selected:
         d = state[device.address[-8:]]

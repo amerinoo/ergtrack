@@ -78,6 +78,15 @@ class Audio:
                 wav.writeframes(raw)
             self.paths[event] = path
 
+    async def speak(self, message):
+        if not self.enabled:
+            return
+        try:
+            process = await asyncio.create_subprocess_exec('say', '-v', 'Monica', '-r', '190', message)
+            await process.wait()
+        except FileNotFoundError:
+            print('Voz de macOS no disponible.', flush=True)
+
     async def play(self, event):
         if not self.enabled:
             return
@@ -251,7 +260,9 @@ async def play_game(args, stream, audio, simulator):
     baseline = await resolve_baseline(args, stream, simulator)
     if baseline < 15:
         raise RuntimeError(f"Baseline too low ({baseline:.0f} W). Start moving and retry.")
-    print(f"Reference: {baseline:.0f} W. Game starting.")
+    print(f"Referencia: {baseline:.0f} W. Empieza el juego.")
+    print("Entre desafíos, rema a ritmo cómodo.")
+    await audio.speak("Bienvenido a Reacciona. Entre desafíos sigue remando a ritmo cómodo. Escapar significa remar fuerte, defender significa mantener tu ritmo y recuperar significa remar suave. Después de cada aviso tendrás tres segundos para cambiar el esfuerzo.")
     score = Score()
     rng = random.Random(args.seed)
     events = ["escape"] * 3 + ["defend"] * 3 + ["recover"] * 2

@@ -192,6 +192,7 @@ class ArcadeGUI:
         self.last_visual_rx = 0.0
         self.last_watts = None
         self.phase = "connecting"
+        self.is_simulation = self.simulated.get()
         self.power_history.clear()
         self.running = True
         self.stop_flag.clear()
@@ -255,6 +256,7 @@ class ArcadeGUI:
             self.baseline = value["baseline"]
             self.target.config(text="Objetivo de espera: %d–%d W" % (self.baseline*.85, self.baseline*1.15))
         elif event == "rest":
+            self.phase = "rest"
             self.active_kind = "rest"
             self.current_bounds = (value["low"], value["high"])
             self.round_label.config(text=f"RONDA {value['round']}/{value['rounds']}")
@@ -262,6 +264,7 @@ class ArcadeGUI:
             self.target.config(text=f"Objetivo: {value['low']:.0f}–{value['high']:.0f} W")
             self.status.config(text="Mantén este intervalo hasta escuchar la señal")
         elif event == "challenge":
+            self.phase = "challenge"
             self.active_kind = value["kind"]
             self.current_bounds = (value["low"], value["high"])
             title = {"escape": "¡ESCAPA!", "defend": "¡DEFIENDE!", "recover": "¡RECUPERA!"}[value["kind"]]
@@ -271,8 +274,10 @@ class ArcadeGUI:
         elif event == "countdown":
             self.status.config(text=f"CAMBIA DE RITMO · {value['value']}")
         elif event == "evaluating":
+            self.phase = "evaluating"
             self.status.config(text=f"Evaluando durante {value['seconds']} muestras…")
         elif event == "result":
+            self.phase = "result"
             self.points.config(text=str(value["points"]))
             self.lives.config(text=str(value["lives"]))
             self.shield.config(text=str(value["shield"]))
@@ -312,35 +317,36 @@ class ArcadeGUI:
             pass
         if self.stream is not None and self.running:
             now = time.monotonic()
-            watts = self.stream.recent_power(now)
-            if watts is not None:
-                self.last_watts = watts
-                self.last_watts_at = self.stream.last_rx
-            shown = self.last_watts
-            # Filter visualization only; scoring still uses real PM5 samples.
-            if watts is not None and self.last_watts_at > self.last_smoothing_at:
+            # The simulator uses virtual time. Convert reception to UI wall time,
+            # rather than comparing timestamps from different clock domains.
+            newest = self.stream.samples[-1] if self.stream.samples else None
+            if newest is not None and newest[0] != self.last_smoothing_at:
+                self.last_smoothing_at = newest[0]
+                self.last_watts = newest[1]
+                self.last_visual_rx = now
                 if self.smoothed_watts is None:
-                    self.smoothed_watts = watts
+                    self.smoothed_watts = self.last_watts
                 else:
-                    self.smoothed_watts += .28 * (watts - self.smoothed_watts)
-                self.last_smoothing_at = self.last_watts_at
-                self.power_history.append((self.last_watts_at, self.smoothed_watts))
+                    self.smoothed_watts += .28 * (self.last_watts - self.smoothed_watts)
+                self.power_history.append((now, self.smoothed_watts))
+            shown = self.last_watts
+            fresh = shown is not None and now - self.last_visual_rx <= 4
             self.gauge_value = self.smoothed_watts
             self.watts.config(text=f"{shown:.0f} W" if shown is not None else "— W",
-                              fg=WHITE if watts is not None else MUTED)
+                              fg=WHITE if fresh else MUTED)
             lo, hi = self.current_bounds
-            if shown is None:
-                self.feedback.config(text="Esperando la primera remada", fg=MUTED)
-            elif watts is None:
-                self.feedback.config(text=f"Última lectura hace {now-self.last_watts_at:.0f} s", fg=AMBER)
-            elif lo is not None and self.smoothed_watts < lo:
-                self.feedback.config(text="¡REMA MÁS FUERTE!", fg=AMBER)
-            elif hi is not None and self.smoothed_watts > hi:
-                self.feedback.config(text="¡REMA MÁS SUAVE!", fg=RED)
-            else:
-                self.feedback.config(text="¡ASÍ, PERFECTO!", fg=GREEN)
+            if self.phase in ("playing", "rest", "challenge", "evaluating"):
+                if shown is None:
+                    self.feedback.config(text="EMPIEZA A REMAR", fg=WHITE)
+                elif not fresh:
+                    self.feedback.config(text="SIGUE REMANDO PARA CONTINUAR", fg=AMBER)
+                elif lo is not None and self.smoothed_watts < lo:
+                    self.feedback.config(text="¡REMA MÁS FUERTE!", fg=AMBER)
+                elif hi is not None and self.smoothed_watts > hi:
+                    self.feedback.config(text="¡REMA MÁS SUAVE!", fg=RED)
+                else:
+                    self.feedback.config(text="¡ASÍ, PERFECTO!", fg=GREEN)
             self.draw_gauge()
-            self.draw_history()
         self.root.after(100, self.poll)
 
     def stop(self):

@@ -50,6 +50,7 @@ class Simulator:
 class Audio:
     NOTES = {
         "ready": [(440, .18)],
+        "countdown": [(620, .12)],
         "escape": [(880, .18), (1100, .18)],
         "defend": [(540, .32)],
         "recover": [(360, .18), (290, .25)],
@@ -294,6 +295,7 @@ async def play_game(args, stream, audio, simulator):
         transition = []
         for remaining in (3, 2, 1):
             print(f"{remaining}... ", end="", flush=True)
+            await audio.play("countdown")
             sample = await measure(stream, 1, simulator, kind, args.tick)
             if sample is None:
                 transition = None

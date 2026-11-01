@@ -26,6 +26,9 @@ python -m pip install -r requirements.txt
 # Pruebas unitarias (sin PM5)
 python -m unittest test_reacciona.py -v
 
+# Diagnóstico de descubrimiento BLE (si PM5 no aparece)
+python ble_scan.py --seconds 30
+
 # Prueba de métricas PM5 con BLE
 python ble_drag_test.py --seconds 30
 
@@ -43,6 +46,7 @@ Más detalles: [README-REACCIONA.md](README-REACCIONA.md).
 ## Arquitectura
 
 - `pm5_ble.py`: driver BLE reutilizable; decodifica distancia, potencia, cadencia y drag factor.
+- `ble_scan.py`: diagnóstico de anuncios BLE sin conectarse al PM5.
 - `ble_drag_test.py`: captura y diagnostica métricas.
 - `reacciona.py`: juego de supervivencia basado en audio, potencia relativa y recompensas.
 

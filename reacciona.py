@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 from collections import deque
+from pm5_ble import PM5Connection
 from dataclasses import dataclass
 import json
 import math
@@ -14,10 +15,6 @@ import struct
 import tempfile
 import time
 import wave
-
-BASE = "-43e5-11e4-916c-0800200c9a66"
-GENERAL = "ce060031" + BASE
-POWER = "ce060036" + BASE
 
 class MetricStream:
     def __init__(self):
@@ -37,69 +34,6 @@ class MetricStream:
             return None
         values = [w for t, w in self.samples if 0 <= now - t <= window]
         return statistics.median(values) if values else None
-
-class PM5:
-    """Read-only notifications, same UUIDs/offsets as ble_drag_test.py."""
-    def __init__(self, stream, name):
-        self.stream = stream
-        self.name = name
-        self.client = None
-
-    async def __aenter__(self):
-        try:
-            from bleak import BleakClient, BleakScanner
-        except ImportError as exc:
-            raise RuntimeError("Install bleak: python -m pip install bleak") from exc
-        matches = {}
-        def detect(device, adv):
-            label = adv.local_name or device.name or ""
-            if "pm5" in label.lower() and self.name.lower() in label.lower():
-                matches[device.address] = (device, label)
-        print("Wake PM5 with Menu. Scanning...", flush=True)
-        for _ in range(3):
-            async with BleakScanner(detection_callback=detect):
-                await asyncio.sleep(15)
-            if matches:
-                break
-        if not matches:
-            raise RuntimeError("No PM5 found. Wake the monitor with Menu and try again.")
-        devices = sorted(matches.values(), key=lambda item: item[1])
-        if len(devices) == 1:
-            device, label = devices[0]
-            print(f"Found one PM5: {label}. Selecting automatically.", flush=True)
-        else:
-            print("Several PM5 monitors found:", flush=True)
-            for index, (_, label) in enumerate(devices, 1):
-                print(f"  {index}. {label}", flush=True)
-            while True:
-                choice = input(f"Choose PM5 [1-{len(devices)}], or q to cancel: ").strip()
-                if choice.lower() == "q":
-                    raise RuntimeError("Selection cancelled")
-                if choice.isdigit() and 1 <= int(choice) <= len(devices):
-                    device, label = devices[int(choice) - 1]
-                    break
-                print("Invalid option.", flush=True)
-        print(f"Connecting to {label}", flush=True)
-        self.client = BleakClient(device, timeout=30)
-        await self.client.connect()
-        def notify(characteristic, data):
-            b = bytes(data)
-            tag = characteristic.uuid.split("-")[0].lower()
-            if tag == "ce060031" and len(b) >= 6:
-                self.stream.distance = int.from_bytes(b[3:6], "little") / 10
-            elif tag == "ce060036" and len(b) >= 5:
-                self.stream.update(int.from_bytes(b[3:5], "little"))
-        try:
-            await self.client.start_notify(GENERAL, notify)
-            await self.client.start_notify(POWER, notify)
-        except Exception:
-            await self.client.disconnect()
-            raise
-        return self
-
-    async def __aexit__(self, *args):
-        if self.client and self.client.is_connected:
-            await self.client.disconnect()
 
 class Simulator:
     def __init__(self, stream, baseline, seed):
@@ -276,7 +210,7 @@ async def main(args):
         if args.simulate:
             await play_game(args, stream, audio, Simulator(stream, args.simulate_watts, args.seed))
         else:
-            async with PM5(stream, args.name):
+            async with PM5Connection(lambda metric: (stream.update(metric.watts, metric.received_at) if metric.kind == "power" else setattr(stream, "distance", metric.distance_m) if metric.kind == "general" else None), args.name):
                 print("Connected. Begin calibration.")
                 await play_game(args, stream, audio, None)
     finally:

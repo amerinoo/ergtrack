@@ -17,7 +17,7 @@ STROKE_POWER = "ce060036" + BASE
 def u24(b):
     return int.from_bytes(b, "little")
 
-async def main(seconds, name, scan_seconds, scan_rounds):
+async def main(seconds, name, scan_seconds, scan_rounds, connect_attempts):
     print(f"Searching for PM5 matching {name!r} ...", flush=True)
     discovered = {}
     service_prefix = "ce060000-43e5-11e4-916c-0800200c9a66"
@@ -76,7 +76,28 @@ async def main(seconds, name, scan_seconds, scan_rounds):
         else:
             print(f"{suffix} raw={b.hex(' ')}", flush=True)
 
-    async with BleakClient(device, timeout=20) as client:
+    client = None
+    for attempt in range(1, connect_attempts + 1):
+        try:
+            print(f"Connecting attempt {attempt}/{connect_attempts} (timeout 30s)...", flush=True)
+            candidate = BleakClient(device, timeout=30)
+            await candidate.connect()
+            client = candidate
+            break
+        except (TimeoutError, OSError, RuntimeError) as error:
+            print(f"Connection failed: {type(error).__name__}: {error}", flush=True)
+            try:
+                if candidate.is_connected:
+                    await candidate.disconnect()
+            except Exception:
+                pass
+            if attempt < connect_attempts:
+                print("Retrying shortly. Keep the PM5 awake.", flush=True)
+                await asyncio.sleep(3)
+    if client is None:
+        print("BLE connection could not be established. Try More Options > Turn Wireless On on this PM5 for an isolated diagnostic; check other apps are not connected.", flush=True)
+        return
+    try:
         print("Connected. Subscribing to 0x31/0x32/0x35/0x36; row or ski for a few strokes.", flush=True)
         active = []
         for uuid in (GENERAL, ADDITIONAL, STROKE, STROKE_POWER):
@@ -95,6 +116,9 @@ async def main(seconds, name, scan_seconds, scan_rounds):
                 await client.stop_notify(uuid)
             except Exception:
                 pass
+    finally:
+        if client.is_connected:
+            await client.disconnect()
     print("Done.")
 
 if __name__ == "__main__":
@@ -103,7 +127,8 @@ if __name__ == "__main__":
     parser.add_argument("--name", default="", help="Part of PM5 name, e.g. 431970273 or Ski")
     parser.add_argument("--scan-seconds", type=int, default=20)
     parser.add_argument("--scan-rounds", type=int, default=3)
+    parser.add_argument("--connect-attempts", type=int, default=2)
     args = parser.parse_args()
-    if min(args.seconds, args.scan_seconds, args.scan_rounds) <= 0:
+    if min(args.seconds, args.scan_seconds, args.scan_rounds, args.connect_attempts) <= 0:
         parser.error("Durations and scan rounds must be positive")
-    asyncio.run(main(args.seconds, args.name, args.scan_seconds, args.scan_rounds))
+    asyncio.run(main(args.seconds, args.name, args.scan_seconds, args.scan_rounds, args.connect_attempts))

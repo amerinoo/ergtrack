@@ -140,7 +140,8 @@ class ArcadeGUI:
         args = SimpleNamespace(rounds=rounds, baseline=baseline, recalibrate=False,
                                calibration_file=".reacciona-calibration.json", tick=1,
                                output="reacciona-last-session.json", seed=42,
-                               name=self.pm5_name.get().strip(), on_event=lambda value: self.messages.put(("event", value)))
+                               name=self.pm5_name.get().strip(), on_event=lambda value: self.messages.put(("event", value)),
+                               should_stop=self.stop_flag.is_set)
         threading.Thread(target=self.worker, args=(args, self.simulated.get()), daemon=True).start()
 
     def worker(self, args, simulated):

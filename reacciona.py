@@ -157,12 +157,43 @@ async def measure(stream, count, simulator, target, interval):
         readings.append(power)
     return readings
 
+async def calibrate(stream, simulator, interval, wait_timeout=90):
+    """Wait for actual movement before starting the calibration clock."""
+    print("Ready. Start rowing when comfortable; calibration begins with movement.", flush=True)
+    if simulator:
+        await simulator.tick("baseline")
+    else:
+        deadline = time.monotonic() + wait_timeout
+        while time.monotonic() < deadline:
+            power = stream.recent_power(time.monotonic())
+            if power is not None and power >= 15:
+                break
+            await asyncio.sleep(0.25)
+        else:
+            raise RuntimeError("No rowing detected within 90 seconds. Check the PM5 and retry.")
+    readings = []
+    # A few missed notifications must not abort the entire calibration.
+    maximum_ticks = 60
+    for index in range(maximum_ticks):
+        if simulator:
+            await simulator.tick("baseline")
+            await asyncio.sleep(interval if interval else 0)
+            now = simulator.virtual_time
+        else:
+            await asyncio.sleep(interval)
+            now = time.monotonic()
+        power = stream.recent_power(now)
+        if power is not None and power >= 15:
+            readings.append(power)
+        if len(readings) >= 45:
+            return statistics.median(readings[15:])
+        if (index + 1) % 15 == 0:
+            print(f"Calibration: {len(readings)}/45 valid samples", flush=True)
+    raise RuntimeError(f"Calibration incomplete: {len(readings)}/45 valid samples. Check movement and BLE updates.")
+
 async def play_game(args, stream, audio, simulator):
     print("CALIBRATION: maintain a comfortable effort for 45 seconds.")
-    calibration = await measure(stream, 45, simulator, "baseline", args.tick)
-    if not calibration:
-        raise RuntimeError("Calibration failed: no fresh power data")
-    baseline = statistics.median(calibration[15:])
+    baseline = await calibrate(stream, simulator, args.tick)
     if baseline < 15:
         raise RuntimeError(f"Baseline too low ({baseline:.0f} W). Start moving and retry.")
     print(f"Reference: {baseline:.0f} W. Game starting.")

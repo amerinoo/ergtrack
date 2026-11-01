@@ -93,14 +93,14 @@ class ArcadeGUI:
         self.feedback = self.label(panel, "3. Pulsa CONECTAR para empezar", 24, MUTED, True)
         self.feedback.pack()
         self.gauge = tk.Canvas(panel, height=260, bg="#34445B", highlightthickness=0)
-        self.gauge.pack(fill="x", pady=(12, 4))
+        # Mantener el gauge anterior fuera de la vista: el gráfico histórico es el principal.
+        # self.gauge.pack(fill="x", pady=(12, 4))
         self.gauge.bind("<Configure>", lambda _: self.draw_gauge())
         self.gauge_value = None
         self.status = self.label(panel, "Conecta el PM5 y empieza a remar", 14, MUTED, wraplength=660)
         self.status.pack(pady=(4, 8))
-        self.history = tk.Canvas(panel, height=100, bg="#172235", highlightthickness=0)
-        # El historial técnico queda oculto para no distraer al deportista.
-        # self.history.pack(fill="x", pady=(4, 2))
+        self.history = tk.Canvas(panel, height=280, bg="#172235", highlightthickness=0)
+        self.history.pack(fill="both", expand=True, pady=(12, 6))
         self.history.bind("<Configure>", lambda _: self.draw_history())
 
         metrics = tk.Frame(self.root, bg=BG)
@@ -357,7 +357,7 @@ class ArcadeGUI:
                     self.feedback.config(text="¡REMA MÁS SUAVE!", fg=RED)
                 else:
                     self.feedback.config(text="¡ASÍ, PERFECTO!", fg=GREEN)
-            self.draw_gauge()
+            self.draw_history()
         self.root.after(100, self.poll)
 
     def stop(self):

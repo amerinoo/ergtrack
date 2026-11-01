@@ -42,6 +42,9 @@ class ArcadeGUI:
         self.smoothed_watts = None
         self.last_smoothing_at = 0.0
         self.power_history = deque(maxlen=120)
+        self.last_visual_rx = 0.0
+        self.started_game = False
+        self.phase = "setup"
         self.build()
         root.after(100, self.poll)
         root.protocol("WM_DELETE_WINDOW", self.close)
@@ -58,6 +61,7 @@ class ArcadeGUI:
         self.connection.pack(side="right", pady=16)
 
         config = tk.Frame(self.root, bg=PANEL, padx=15, pady=12)
+        self.config_panel = config
         config.pack(fill="x", padx=28, pady=(0, 12))
         self.label(config, "Rondas", 11, MUTED).grid(row=0, column=0, sticky="w")
         self.rounds = tk.Spinbox(config, from_=1, to=20, width=5, font=("Helvetica", 15))
@@ -79,22 +83,23 @@ class ArcadeGUI:
         panel.pack(fill="both", expand=True, padx=28, pady=5)
         self.round_label = self.label(panel, "PREPARADO · 0/3", 15, MUTED, True)
         self.round_label.pack(pady=(0, 3))
-        self.phase_label = self.label(panel, "Pulsa Iniciar partida", 25, WHITE, True, wraplength=670)
+        self.phase_label = self.label(panel, "1. SIÉNTATE EN EL REMO", 33, WHITE, True, wraplength=850)
         self.phase_label.pack(pady=(3, 3))
-        self.target = self.label(panel, "Objetivo: —", 16, CYAN, True)
+        self.target = self.label(panel, "2. Pulsa MENU en el PM5 para encenderlo", 19, CYAN, True)
         self.target.pack(pady=(0, 3))
         self.watts = self.label(panel, "— W", 32, WHITE, True)
         self.watts.pack(pady=(0, 2))
-        self.feedback = self.label(panel, "Sin datos de potencia", 16, MUTED, True)
+        self.feedback = self.label(panel, "3. Pulsa CONECTAR para empezar", 24, MUTED, True)
         self.feedback.pack()
-        self.gauge = tk.Canvas(panel, height=54, bg="#34445B", highlightthickness=0)
+        self.gauge = tk.Canvas(panel, height=160, bg="#34445B", highlightthickness=0)
         self.gauge.pack(fill="x", pady=(12, 4))
         self.gauge.bind("<Configure>", lambda _: self.draw_gauge())
         self.gauge_value = None
         self.status = self.label(panel, "Conecta el PM5 y empieza a remar", 14, MUTED, wraplength=660)
         self.status.pack(pady=(4, 8))
         self.history = tk.Canvas(panel, height=100, bg="#172235", highlightthickness=0)
-        self.history.pack(fill="x", pady=(4, 2))
+        # El historial técnico queda oculto para no distraer al deportista.
+        # self.history.pack(fill="x", pady=(4, 2))
         self.history.bind("<Configure>", lambda _: self.draw_history())
 
         metrics = tk.Frame(self.root, bg=BG)
@@ -106,7 +111,7 @@ class ArcadeGUI:
 
         controls = tk.Frame(self.root, bg=BG)
         controls.pack(fill="x", padx=28, pady=(0, 18))
-        self.start_button = tk.Button(controls, text="▶ Iniciar partida", command=self.start, bg=CYAN, fg="white", font=("Helvetica", 15, "bold"), relief="flat", padx=18, pady=12)
+        self.start_button = tk.Button(controls, text="▶ CONECTAR Y PREPARAR", command=self.start, bg=CYAN, fg="white", font=("Helvetica", 15, "bold"), relief="flat", padx=18, pady=12)
         self.start_button.pack(side="left", fill="x", expand=True, padx=(0, 8))
         self.stop_button = tk.Button(controls, text="■ Detener", command=self.stop, bg="#34445B", fg="white", font=("Helvetica", 15), relief="flat", padx=18, pady=12, state="disabled")
         self.stop_button.pack(side="left", fill="x", expand=True, padx=(8, 0))
@@ -183,13 +188,19 @@ class ArcadeGUI:
         self.baseline = baseline
         self.smoothed_watts = None
         self.last_smoothing_at = 0.0
+        self.last_visual_rx = 0.0
+        self.last_watts = None
+        self.phase = "connecting"
         self.power_history.clear()
         self.running = True
         self.stop_flag.clear()
         self.start_button.config(state="disabled")
         self.stop_button.config(state="normal")
         self.connection.config(text="● CONECTANDO...", fg=AMBER)
-        self.status.config(text="Buscando PM5 por Bluetooth…" if not self.simulated.get() else "Preparando simulación…")
+        self.phase_label.config(text="CONECTANDO TU REMO", fg=WHITE)
+        self.target.config(text="Enciende el PM5 pulsando MENU")
+        self.feedback.config(text="Buscando la máquina…", fg=AMBER)
+        self.status.config(text="No selecciones ningún entrenamiento en el PM5.")
         args = SimpleNamespace(rounds=rounds, baseline=baseline, recalibrate=False,
                                calibration_file=".reacciona-calibration.json", tick=1,
                                output="reacciona-last-session.json", seed=42,

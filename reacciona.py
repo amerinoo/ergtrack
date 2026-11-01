@@ -209,9 +209,46 @@ async def calibrate(stream, simulator, interval, wait_timeout=90):
             print(f"Calibration: {len(readings)}/45 valid samples", flush=True)
     raise RuntimeError(f"Calibration incomplete: {len(readings)}/45 valid samples. Check movement and BLE updates.")
 
-async def play_game(args, stream, audio, simulator):
-    print("CALIBRATION: maintain a comfortable effort for 45 seconds.")
+def valid_baseline(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and 15 <= value <= 3000
+
+
+def load_baseline(path):
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        value = data["baseline_w"]
+        return float(value) if valid_baseline(value) else None
+    except (OSError, ValueError, TypeError, KeyError):
+        return None
+
+
+def save_baseline(path, baseline):
+    if not valid_baseline(baseline):
+        raise ValueError("Invalid baseline power")
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(json.dumps({"baseline_w": round(baseline, 2)}, indent=2) + "\\n", encoding="utf-8")
+
+
+async def resolve_baseline(args, stream, simulator):
+    if args.baseline is not None:
+        print(f"Using manual reference: {args.baseline:.0f} W.", flush=True)
+        return args.baseline
+    if not args.recalibrate and not simulator:
+        saved = load_baseline(args.calibration_file)
+        if saved is not None:
+            print(f"Reusing saved reference: {saved:.0f} W. Use --recalibrate to measure again.", flush=True)
+            return saved
+    print("CALIBRATION: maintain a comfortable effort for 45 valid samples.", flush=True)
     baseline = await calibrate(stream, simulator, args.tick)
+    if not simulator:
+        save_baseline(args.calibration_file, baseline)
+        print(f"Saved reference to {args.calibration_file}.", flush=True)
+    return baseline
+
+
+async def play_game(args, stream, audio, simulator):
+    baseline = await resolve_baseline(args, stream, simulator)
     if baseline < 15:
         raise RuntimeError(f"Baseline too low ({baseline:.0f} W). Start moving and retry.")
     print(f"Reference: {baseline:.0f} W. Game starting.")
@@ -272,6 +309,9 @@ async def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--name", default="", help="PM5 serial / advertised name")
+    parser.add_argument("--baseline", type=float, help="Override calibration with a manual power reference in W")
+    parser.add_argument("--recalibrate", action="store_true", help="Ignore saved reference and recalibrate")
+    parser.add_argument("--calibration-file", default=".reacciona-calibration.json", help="Path to locally saved reference")
     parser.add_argument("--simulate", action="store_true")
     parser.add_argument("--simulate-watts", type=float, default=110)
     parser.add_argument("--tick", type=float, default=1, help="Seconds per sample; simulation can use 0")
@@ -279,6 +319,10 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--output", default="reacciona-last-session.json")
     args = parser.parse_args()
+    if args.baseline is not None and not valid_baseline(args.baseline):
+        parser.error("--baseline must be between 15 and 3000 W")
+    if args.baseline is not None and args.recalibrate:
+        parser.error("--baseline and --recalibrate cannot be combined")
     try:
         asyncio.run(main(args))
     except (KeyboardInterrupt, RuntimeError) as exc:

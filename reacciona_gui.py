@@ -92,6 +92,7 @@ class ArcadeGUI:
         self.watts.pack(pady=(0, 2))
         self.feedback = self.label(panel, "3. Pulsa CONECTAR para empezar", 39, WHITE, True, wraplength=840)
         self.feedback.pack(before=self.target, pady=(3, 7))
+        self.watts.pack_forget()
         self.gauge = tk.Canvas(panel, height=260, bg="#34445B", highlightthickness=0)
         # Mantener el gauge anterior fuera de la vista: el gráfico histórico es el principal.
         # self.gauge.pack(fill="x", pady=(12, 4))
@@ -100,18 +101,19 @@ class ArcadeGUI:
         self.status = self.label(panel, "Conecta el PM5 y empieza a remar", 14, MUTED, wraplength=660)
         self.status.pack(pady=(2, 5))
         self.history = tk.Canvas(panel, height=340, bg="#172235", highlightthickness=0)
-        self.history.pack(fill="both", expand=True, pady=(12, 6))
+        # No graph until movement/gameplay: keep onboarding clear and compact.
         self.history.bind("<Configure>", lambda _: self.draw_history())
 
         metrics = tk.Frame(self.root, bg=BG)
-        metrics.pack(fill="x", padx=28, pady=12)
+        metrics.pack(fill="x", padx=28, pady=6)
         self.points = self.metric(metrics, "PUNTOS", "0", 0)
         self.lives = self.metric(metrics, "VIDAS", "3", 1)
         self.shield = self.metric(metrics, "ESCUDO", "0", 2)
         self.streak = self.metric(metrics, "RACHA", "0", 3)
 
         controls = tk.Frame(self.root, bg=BG)
-        controls.pack(fill="x", padx=28, pady=(0, 18))
+        self.controls_panel = controls
+        controls.pack(side="bottom", fill="x", padx=28, pady=(4, 12))
         self.start_button = tk.Button(controls, text="▶ CONECTAR Y PREPARAR", command=self.start, bg=CYAN, fg="white", font=("Helvetica", 15, "bold"), relief="flat", padx=18, pady=12)
         self.start_button.pack(side="left", fill="x", expand=True, padx=(0, 8))
         self.stop_button = tk.Button(controls, text="■ Detener", command=self.stop, bg="#34445B", fg="white", font=("Helvetica", 15), relief="flat", padx=18, pady=12, state="disabled")
@@ -222,6 +224,7 @@ class ArcadeGUI:
         self.last_visual_rx = 0.0
         self.last_watts = None
         self.phase = "connecting"
+        self.history.pack_forget()
         self.is_simulation = self.simulated.get()
         self.power_history.clear()
         self.running = True
@@ -284,6 +287,8 @@ class ArcadeGUI:
             self.phase = "playing"
             self.config_panel.pack_forget()
             self.status.pack_forget()
+            self.watts.pack(pady=(0, 2), before=self.status)
+            self.history.pack(fill="both", expand=True, pady=(12, 6))
             self.baseline = value["baseline"]
             self.target.config(text="Objetivo de espera: %d–%d W" % (self.baseline*.85, self.baseline*1.15))
         elif event == "rest":
@@ -332,6 +337,7 @@ class ArcadeGUI:
                     self.apply_event(data)
                 elif kind == "onboarding":
                     self.phase = "movement" if data == "movement" else "ready"
+                    self.history.pack_forget()
                     self.phase_label.config(text="¡EMPIEZA A REMAR!" if data == "movement" else "¡TODO LISTO!", fg=GREEN)
                     self.target.config(text="Rema suavemente para comprobar la conexión" if data == "movement" else "La partida empieza ahora")
                     self.feedback.config(text="Detectaremos tu primera remada automáticamente" if data == "movement" else "ESCAPA = fuerte · DEFIENDE = constante · RECUPERA = suave", fg=WHITE)
@@ -346,6 +352,9 @@ class ArcadeGUI:
                     if self.phase not in ("finished", "error"):
                         self.phase = "setup"
                     self.config_panel.pack(fill="x", padx=28, pady=(0, 12), before=self.game_panel)
+                    if self.phase == "setup":
+                        self.history.pack_forget()
+                        self.watts.pack_forget()
                     self.running = False
                     self.start_button.config(state="normal")
                     self.stop_button.config(state="disabled")

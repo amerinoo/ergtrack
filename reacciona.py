@@ -168,7 +168,7 @@ async def measure(stream, count, simulator, target, interval):
                 if power is not None:
                     break
             if power is None:
-                print("No recent power samples during challenge; pausing without penalty.", flush=True)
+                print("No llegan datos de potencia durante el desafío; se detiene sin penalización.", flush=True)
                 return None
         if power is None:
             return None
@@ -186,7 +186,7 @@ async def rest_phase(seconds, simulator, stream, interval):
 
 async def calibrate(stream, simulator, interval, wait_timeout=90):
     """Wait for actual movement before starting the calibration clock."""
-    print("Ready. Start rowing when comfortable; calibration begins with movement.", flush=True)
+    print("Preparado. Empieza a remar a ritmo cómodo para iniciar la calibración.", flush=True)
     if simulator:
         await simulator.tick("baseline")
     else:
@@ -215,7 +215,7 @@ async def calibrate(stream, simulator, interval, wait_timeout=90):
         if len(readings) >= 45:
             return statistics.median(readings[15:])
         if (index + 1) % 15 == 0:
-            print(f"Calibration: {len(readings)}/45 valid samples", flush=True)
+            print(f"Calibración: {len(readings)}/45 muestras válidas", flush=True)
     raise RuntimeError(f"Calibration incomplete: {len(readings)}/45 valid samples. Check movement and BLE updates.")
 
 def valid_baseline(value):
@@ -241,18 +241,18 @@ def save_baseline(path, baseline):
 
 async def resolve_baseline(args, stream, simulator):
     if args.baseline is not None:
-        print(f"Using manual reference: {args.baseline:.0f} W.", flush=True)
+        print(f"Usando referencia manual: {args.baseline:.0f} W.", flush=True)
         return args.baseline
     if not args.recalibrate and not simulator:
         saved = load_baseline(args.calibration_file)
         if saved is not None:
-            print(f"Reusing saved reference: {saved:.0f} W. Use --recalibrate to measure again.", flush=True)
+            print(f"Reutilizando referencia guardada: {saved:.0f} W. Usa --recalibrate para medir de nuevo.", flush=True)
             return saved
-    print("CALIBRATION: maintain a comfortable effort for 45 valid samples.", flush=True)
+    print("CALIBRACIÓN: mantén un esfuerzo cómodo durante 45 muestras válidas.", flush=True)
     baseline = await calibrate(stream, simulator, args.tick)
     if not simulator:
         save_baseline(args.calibration_file, baseline)
-        print(f"Saved reference to {args.calibration_file}.", flush=True)
+        print(f"Referencia guardada en {args.calibration_file}.", flush=True)
     return baseline
 
 
@@ -289,7 +289,7 @@ async def play_game(args, stream, audio, simulator):
         print("Evaluando...", flush=True)
         powers = await measure(stream, 5 if kind == "escape" else 8, simulator, kind, args.tick)
         if transition is None or powers is None:
-            raise RuntimeError("PM5 power updates paused during challenge; try again when readings resume (no points/lives deducted)")
+            raise RuntimeError("No llegan datos de potencia del PM5 durante el desafío. Sin penalización.")
         valid, excellent = judge(kind, powers, baseline)
         reward = score.apply(kind, valid, excellent if valid else False)
         await audio.play("success" if valid else "fail")
@@ -310,7 +310,7 @@ async def play_game(args, stream, audio, simulator):
     path = Path(args.output)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(output, indent=2) + "\n", encoding="utf-8")
-    print(f"RESULT: {score.points} points; {score.successes}/{score.attempts} correct; saved {path}")
+    print(f"RESULTADO: {score.points} puntos; {score.successes}/{score.attempts} aciertos; guardado en {path}")
 
 async def main(args):
     stream = MetricStream()
@@ -350,5 +350,5 @@ if __name__ == "__main__":
     try:
         asyncio.run(main(args))
     except (KeyboardInterrupt, RuntimeError) as exc:
-        print(f"Stopped: {exc}")
+        print(f"Juego detenido: {exc}")
         raise SystemExit(1)

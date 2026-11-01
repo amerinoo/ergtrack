@@ -80,6 +80,7 @@ class ArcadeGUI:
         tk.Checkbutton(config, text="Simulación", variable=self.simulated, bg=PANEL, fg=WHITE, selectcolor=BG, activebackground=PANEL, activeforeground=WHITE).grid(row=1, column=3, sticky="w")
 
         panel = tk.Frame(self.root, bg=PANEL, padx=24, pady=16)
+        self.game_panel = panel
         panel.pack(fill="both", expand=True, padx=28, pady=5)
         self.round_label = self.label(panel, "PREPARADO · 0/3", 15, MUTED, True)
         self.round_label.pack(pady=(0, 3))
@@ -141,16 +142,16 @@ class ArcadeGUI:
             relative = (watts - center) / span
             return 16 + (width - 32) * max(0, min(1, .5 + .5 * relative))
         left, right = position(lo), position(visual_hi)
-        self.gauge.create_rectangle(16, 12, width - 16, 32, fill="#34445B", outline="")
-        self.gauge.create_rectangle(left, 12, right, 32, fill="#29956B", outline="")
-        self.gauge.create_line(left, 8, left, 36, fill=GREEN, width=2)
+        self.gauge.create_rectangle(16, 30, width - 16, 120, fill="#34445B", outline="")
+        self.gauge.create_rectangle(left, 30, right, 120, fill="#29956B", outline="")
+        self.gauge.create_line(left, 24, left, 126, fill=GREEN, width=3)
         if hi is not None:
-            self.gauge.create_line(right, 8, right, 36, fill=GREEN, width=2)
+            self.gauge.create_line(right, 24, right, 126, fill=GREEN, width=3)
         if self.gauge_value is not None:
             x = position(self.gauge_value)
-            self.gauge.create_line(x, 4, x, 39, fill=WHITE, width=4)
-            self.gauge.create_oval(x - 5, 17, x + 5, 27, fill=WHITE, outline="")
-        self.gauge.create_text(width / 2, 47, text="ZONA OBJETIVO", fill=GREEN,
+            self.gauge.create_line(x, 17, x, 134, fill=WHITE, width=7)
+            self.gauge.create_oval(x - 10, 65, x + 10, 85, fill=WHITE, outline="")
+        self.gauge.create_text(width / 2, 146, text="ZONA OBJETIVO", fill=GREEN,
                                font=("Helvetica", 11, "bold"))
 
     def draw_history(self):
@@ -303,7 +304,7 @@ class ArcadeGUI:
                 elif kind == "done":
                     if self.phase not in ("finished", "error"):
                         self.phase = "setup"
-                    self.config_panel.pack(fill="x", padx=28, pady=(0, 12), before=self.root.winfo_children()[2])
+                    self.config_panel.pack(fill="x", padx=28, pady=(0, 12), before=self.game_panel)
                     self.running = False
                     self.start_button.config(state="normal")
                     self.stop_button.config(state="disabled")

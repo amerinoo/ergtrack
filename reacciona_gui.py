@@ -226,8 +226,17 @@ class ArcadeGUI:
                             stream.distance = metric.distance_m
                     async with PM5Connection(metric_received, args.name, interactive=False):
                         self.messages.put(("connected", "PM5 CONECTADO"))
+                        self.messages.put(("onboarding", "movement"))
+                        while not self.stop_flag.is_set():
+                            power = stream.recent_power(time.monotonic())
+                            if power is not None and power >= 15:
+                                break
+                            await asyncio.sleep(.25)
                         if not self.stop_flag.is_set():
-                            await play_game(args, stream, audio, None)
+                            self.messages.put(("onboarding", "ready"))
+                            await asyncio.sleep(2)
+                            if not self.stop_flag.is_set():
+                                await play_game(args, stream, audio, None)
             finally:
                 audio.close()
         try:
@@ -240,6 +249,8 @@ class ArcadeGUI:
     def apply_event(self, value):
         event = value["event"]
         if event == "start":
+            self.phase = "playing"
+            self.config_panel.pack_forget()
             self.baseline = value["baseline"]
             self.target.config(text="Objetivo de espera: %d–%d W" % (self.baseline*.85, self.baseline*1.15))
         elif event == "rest":
@@ -269,6 +280,7 @@ class ArcadeGUI:
             extras = (" +25 excelencia" if value["excellent"] else "") + (" +50 racha" if value["valid"] and value["streak"] % 3 == 0 else "")
             self.status.config(text=f"{value['hits']}/{value['samples']} muestras correctas · +{value['earned']} puntos" + extras)
         elif event == "finished":
+            self.phase = "finished"
             self.phase_label.config(text="PARTIDA TERMINADA", fg=GREEN)
             self.status.config(text=f"{value['points']} puntos · {value['successes']}/{value['attempts']} desafíos superados")
 
@@ -278,12 +290,20 @@ class ArcadeGUI:
                 kind, data = self.messages.get_nowait()
                 if kind == "event":
                     self.apply_event(data)
+                elif kind == "onboarding":
+                    self.phase = "movement" if data == "movement" else "ready"
+                    self.phase_label.config(text="¡EMPIEZA A REMAR!" if data == "movement" else "¡TODO LISTO!", fg=GREEN)
+                    self.target.config(text="Rema suavemente para comprobar la conexión" if data == "movement" else "La partida empieza ahora")
+                    self.feedback.config(text="Detectaremos tu primera remada automáticamente" if data == "movement" else "ESCAPA = fuerte · DEFIENDE = constante · RECUPERA = suave", fg=WHITE)
                 elif kind == "connected":
                     self.connection.config(text="● " + data, fg=GREEN)
                 elif kind == "error":
                     self.status.config(text="Error: " + data)
                     self.connection.config(text="● ERROR", fg=RED)
                 elif kind == "done":
+                    if self.phase not in ("finished", "error"):
+                        self.phase = "setup"
+                    self.config_panel.pack(fill="x", padx=28, pady=(0, 12), before=self.root.winfo_children()[2])
                     self.running = False
                     self.start_button.config(state="normal")
                     self.stop_button.config(state="disabled")

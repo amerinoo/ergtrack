@@ -227,7 +227,7 @@ def save_baseline(path, baseline):
         raise ValueError("Invalid baseline power")
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(json.dumps({"baseline_w": round(baseline, 2)}, indent=2) + "\\n", encoding="utf-8")
+    destination.write_text(json.dumps({"baseline_w": round(baseline, 2)}, indent=2) + "\n", encoding="utf-8")
 
 
 async def resolve_baseline(args, stream, simulator):

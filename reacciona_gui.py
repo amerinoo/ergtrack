@@ -188,10 +188,15 @@ class ArcadeGUI:
         canvas.create_text(9, 8, text="ESFUERZO · ÚLTIMOS 30 S", anchor="nw", fill=MUTED, font=("Helvetica", 9))
         if len(self.power_history) > 1:
             latest = self.power_history[-1][0]
+            first = self.power_history[0][0]
+            # Start drawing at the horizontal center, moving right with time.
+            # Once the right edge is reached, scroll the 30-second window.
+            window_start = max(first - 15, latest - 30)
             coords = []
             for timestamp, power in self.power_history:
-                if latest - timestamp <= 30:
-                    coords.extend((w - 12 - (latest - timestamp) / 30 * (w - 24), y(power)))
+                if timestamp >= window_start:
+                    x = 12 + (timestamp - window_start) / 30 * (w - 24)
+                    coords.extend((x, y(power)))
             if len(coords) >= 4:
                 canvas.create_line(*coords, fill="#07354C", width=13, smooth=True,
                                    capstyle=tk.ROUND, joinstyle=tk.ROUND)

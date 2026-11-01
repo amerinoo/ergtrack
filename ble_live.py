@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Read-only live PM5 BLE notifications (Concept2 custom GATT).
 
-No CSAFE writes, no workout changes. Start rowing after connecting.
+No CSAFE writes, no workout changes. Start rowing or skiing after connecting.
 """
 import argparse
 import asyncio
@@ -17,12 +17,27 @@ STROKE_POWER = "ce060036" + BASE
 def u24(b):
     return int.from_bytes(b, "little")
 
-async def main(seconds):
-    print("Searching for PM5 ...", flush=True)
-    found = await BleakScanner.discover(timeout=12)
-    matches = [d for d in found if "pm5" in (d.name or "").lower()]
-    if not matches:
-        print("PM5 not found. Press Menu to wake it and retry.")
+async def main(seconds, name, scan_seconds, scan_rounds):
+    print(f"Searching for PM5 matching {name!r} ...", flush=True)
+    discovered = {}
+    for attempt in range(1, scan_rounds + 1):
+        found = await BleakScanner.discover(timeout=scan_seconds)
+        for device in found:
+            device_name = device.name or ""
+            if "pm5" in device_name.lower():
+                discovered[device.address] = device
+        print(f"Scan {attempt}/{scan_rounds}: {len(discovered)} PM5(s) found", flush=True)
+        for item in discovered.values():
+            print(f"  {item.name} ({item.address})", flush=True)
+        matches = [d for d in discovered.values() if name.lower() in (d.name or "").lower()]
+        if matches:
+            break
+        print("Target not seen; press Menu on the PM5 and keep it awake.", flush=True)
+    else:
+        print(f"No PM5 matched {name!r} after {scan_rounds} scans.")
+        return
+    if len(matches) > 1:
+        print("Multiple PM5s match: specify --name with the monitor number to avoid selecting the wrong machine.")
         return
     device = matches[0]
     print(f"Connecting: {device.name} ({device.address})", flush=True)
@@ -73,5 +88,10 @@ async def main(seconds):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--seconds", type=int, default=30)
+    parser.add_argument("--name", default="", help="Part of PM5 name, e.g. 431970273 or Ski")
+    parser.add_argument("--scan-seconds", type=int, default=20)
+    parser.add_argument("--scan-rounds", type=int, default=3)
     args = parser.parse_args()
-    asyncio.run(main(args.seconds))
+    if min(args.seconds, args.scan_seconds, args.scan_rounds) <= 0:
+        parser.error("Durations and scan rounds must be positive")
+    asyncio.run(main(args.seconds, args.name, args.scan_seconds, args.scan_rounds))

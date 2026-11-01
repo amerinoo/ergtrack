@@ -8,6 +8,7 @@ from tkinter import ttk, messagebox
 from types import SimpleNamespace
 from pathlib import Path
 import time
+from collections import deque
 
 from pm5_ble import PM5Connection
 from reacciona import Audio, MetricStream, Simulator, play_game, load_baseline
@@ -26,8 +27,8 @@ class ArcadeGUI:
     def __init__(self, root):
         self.root = root
         root.title("The Box Arcade · Reacciona")
-        root.geometry("840x730")
-        root.minsize(680, 620)
+        root.geometry("960x670")
+        root.minsize(760, 610)
         root.configure(bg=BG)
         self.messages = queue.Queue()
         self.stop_flag = threading.Event()
@@ -38,6 +39,9 @@ class ArcadeGUI:
         self.stream = None
         self.last_watts = None
         self.last_watts_at = 0.0
+        self.smoothed_watts = None
+        self.last_smoothing_at = 0.0
+        self.power_history = deque(maxlen=120)
         self.build()
         root.after(100, self.poll)
         root.protocol("WM_DELETE_WINDOW", self.close)
@@ -49,7 +53,7 @@ class ArcadeGUI:
         heading = tk.Frame(self.root, bg=BG)
         heading.pack(fill="x", padx=28, pady=(22, 12))
         self.label(heading, "THE BOX ARCADE", 12, CYAN, True).pack(anchor="w")
-        self.label(heading, "REACCIONA", 30, WHITE, True).pack(side="left")
+        self.label(heading, "REACCIONA", 24, WHITE, True).pack(side="left")
         self.connection = self.label(heading, "● DESCONECTADO", 12, MUTED, True)
         self.connection.pack(side="right", pady=16)
 
@@ -71,24 +75,27 @@ class ArcadeGUI:
         self.simulated = tk.BooleanVar(value=False)
         tk.Checkbutton(config, text="Simulación", variable=self.simulated, bg=PANEL, fg=WHITE, selectcolor=BG, activebackground=PANEL, activeforeground=WHITE).grid(row=1, column=3, sticky="w")
 
-        panel = tk.Frame(self.root, bg=PANEL, padx=24, pady=24)
+        panel = tk.Frame(self.root, bg=PANEL, padx=24, pady=16)
         panel.pack(fill="both", expand=True, padx=28, pady=5)
         self.round_label = self.label(panel, "PREPARADO · 0/3", 15, MUTED, True)
-        self.round_label.pack()
-        self.phase_label = self.label(panel, "Pulsa Iniciar partida", 31, WHITE, True, wraplength=670)
-        self.phase_label.pack(pady=(12, 6))
-        self.target = self.label(panel, "Objetivo: —", 21, CYAN, True)
-        self.target.pack(pady=(0, 10))
-        self.watts = self.label(panel, "— W", 52, WHITE, True)
-        self.watts.pack(pady=(0, 3))
+        self.round_label.pack(pady=(0, 3))
+        self.phase_label = self.label(panel, "Pulsa Iniciar partida", 25, WHITE, True, wraplength=670)
+        self.phase_label.pack(pady=(3, 3))
+        self.target = self.label(panel, "Objetivo: —", 16, CYAN, True
+        self.target.pack(pady=(0, 3))
+        self.watts = self.label(panel, "— W", 32, WHITE, True
+        self.watts.pack(pady=(0, 2))
         self.feedback = self.label(panel, "Sin datos de potencia", 16, MUTED, True)
         self.feedback.pack()
         self.gauge = tk.Canvas(panel, height=54, bg="#34445B", highlightthickness=0)
-        self.gauge.pack(fill="x", pady=(18, 10))
+        self.gauge.pack(fill="x", pady=(12, 4))
         self.gauge.bind("<Configure>", lambda _: self.draw_gauge())
         self.gauge_value = None
         self.status = self.label(panel, "Conecta el PM5 y empieza a remar", 14, MUTED, wraplength=660)
-        self.status.pack(pady=12)
+        self.status.pack(pady=(4, 8))
+        self.history = tk.Canvas(panel, height=100, bg="#172235", highlightthickness=0)
+        self.history.pack(fill="x", pady=(4, 2))
+        self.history.bind("<Configure>", lambda _: self.draw_history())
 
         metrics = tk.Frame(self.root, bg=BG)
         metrics.pack(fill="x", padx=28, pady=12)
@@ -153,6 +160,9 @@ class ArcadeGUI:
             messagebox.showerror("Configuración incorrecta", "Rondas: 1-20. Referencia: 15-3000 W.")
             return
         self.baseline = baseline
+        self.smoothed_watts = None
+        self.last_smoothing_at = 0.0
+        self.power_history.clear()
         self.running = True
         self.stop_flag.clear()
         self.start_button.config(state="disabled")

@@ -79,7 +79,7 @@ class ArcadeGUI:
         self.phase_label.pack(pady=(12, 6))
         self.target = self.label(panel, "Objetivo: —", 21, CYAN, True)
         self.target.pack(pady=(0, 10))
-        self.watts = self.label(panel, "— W", 72, WHITE, True)
+        self.watts = self.label(panel, "— W", 52, WHITE, True)
         self.watts.pack(pady=(0, 3))
         self.feedback = self.label(panel, "Sin datos de potencia", 16, MUTED, True)
         self.feedback.pack()
@@ -114,23 +114,32 @@ class ArcadeGUI:
         return number
 
     def draw_gauge(self):
+        """Zona verde centrada: la aguja se desplaza según el esfuerzo."""
         self.gauge.delete("all")
-        width = max(40, self.gauge.winfo_width())
+        width = max(80, self.gauge.winfo_width())
         lo, hi = self.current_bounds
-        lo = lo if lo is not None else self.baseline * .85
-        hi = hi if hi is not None else lo * 1.6
-        scale = max(150, hi * 1.35, (self.gauge_value or 0) * 1.08)
-        x = lambda w: 12 + (width - 24) * max(0, min(1, w / scale))
-        self.gauge.create_rectangle(12, 12, width - 12, 31, fill="#34445B", outline="")
-        self.gauge.create_rectangle(x(lo), 12, x(hi), 31, fill="#29956B", outline="")
+        if lo is None:
+            lo, hi = self.baseline * .85, self.baseline * 1.15
+        # Escape no tiene límite superior: zona visual de éxito de ancho útil.
+        visual_hi = hi if hi is not None else lo * 1.15
+        center = (lo + visual_hi) / 2
+        half = max(1, (visual_hi - lo) / 2)
+        span = half * 3.2
+        def position(watts):
+            relative = (watts - center) / span
+            return 16 + (width - 32) * max(0, min(1, .5 + .5 * relative))
+        left, right = position(lo), position(visual_hi)
+        self.gauge.create_rectangle(16, 12, width - 16, 32, fill="#34445B", outline="")
+        self.gauge.create_rectangle(left, 12, right, 32, fill="#29956B", outline="")
+        self.gauge.create_line(left, 8, left, 36, fill=GREEN, width=2)
+        if hi is not None:
+            self.gauge.create_line(right, 8, right, 36, fill=GREEN, width=2)
         if self.gauge_value is not None:
-            p = x(self.gauge_value)
-            self.gauge.create_line(p, 5, p, 36, fill=WHITE, width=4)
-        self.gauge.create_text(12, 47, text="0 W", anchor="w", fill=MUTED)
-        self.gauge.create_text(width - 12, 47, text=f"{scale:.0f} W", anchor="e", fill=MUTED)
-        self.gauge.create_text(x(lo), 47, text=f"{lo:.0f}", fill=GREEN)
-        if x(hi) - x(lo) > 45:
-            self.gauge.create_text(x(hi), 47, text=f"{hi:.0f}", fill=GREEN)
+            x = position(self.gauge_value)
+            self.gauge.create_line(x, 4, x, 39, fill=WHITE, width=4)
+            self.gauge.create_oval(x - 5, 17, x + 5, 27, fill=WHITE, outline="")
+        self.gauge.create_text(width / 2, 47, text="ZONA OBJETIVO", fill=GREEN,
+                               font=("Helvetica", 11, "bold"))
 
     def start(self):
         if self.running:

@@ -148,6 +148,27 @@ class ArcadeGUI:
         self.gauge.create_text(width / 2, 47, text="ZONA OBJETIVO", fill=GREEN,
                                font=("Helvetica", 11, "bold"))
 
+    def draw_history(self):
+        """Trace recent effort against a shaded target corridor."""
+        canvas = self.history
+        canvas.delete("all")
+        w, h = max(80, canvas.winfo_width()), max(60, canvas.winfo_height())
+        lo, hi = self.current_bounds
+        if lo is None:
+            lo, hi = self.baseline * .85, self.baseline * 1.15
+        top = max((hi or lo * 1.5) * 1.35, self.baseline * 1.8, 100)
+        y = lambda power: h - 10 - max(0, min(1, power / top)) * (h - 20)
+        canvas.create_rectangle(0, y(hi if hi is not None else top), w, y(lo), fill="#20493D", outline="")
+        canvas.create_text(9, 8, text="ESFUERZO · ÚLTIMOS 30 S", anchor="nw", fill=MUTED, font=("Helvetica", 9))
+        if len(self.power_history) > 1:
+            latest = self.power_history[-1][0]
+            coords = []
+            for timestamp, power in self.power_history:
+                if latest - timestamp <= 30:
+                    coords.extend((w - 12 - (latest - timestamp) / 30 * (w - 24), y(power)))
+            if len(coords) >= 4:
+                canvas.create_line(*coords, fill=CYAN, width=3, smooth=True)
+
     def start(self):
         if self.running:
             return
@@ -264,7 +285,15 @@ class ArcadeGUI:
                 self.last_watts = watts
                 self.last_watts_at = now
             shown = self.last_watts
-            self.gauge_value = shown
+            # Filter visualization only; scoring still uses real PM5 samples.
+            if watts is not None and self.last_watts_at > self.last_smoothing_at:
+                if self.smoothed_watts is None:
+                    self.smoothed_watts = watts
+                else:
+                    self.smoothed_watts += .28 * (watts - self.smoothed_watts)
+                self.last_smoothing_at = self.last_watts_at
+                self.power_history.append((now, self.smoothed_watts))
+            self.gauge_value = self.smoothed_watts
             self.watts.config(text=f"{shown:.0f} W" if shown is not None else "— W",
                               fg=WHITE if watts is not None else MUTED)
             lo, hi = self.current_bounds
@@ -272,13 +301,14 @@ class ArcadeGUI:
                 self.feedback.config(text="Esperando la primera remada", fg=MUTED)
             elif watts is None:
                 self.feedback.config(text=f"Última lectura hace {now-self.last_watts_at:.0f} s", fg=AMBER)
-            elif lo is not None and shown < lo:
+            elif lo is not None and self.smoothed_watts < lo:
                 self.feedback.config(text="¡REMA MÁS FUERTE!", fg=AMBER)
-            elif hi is not None and shown > hi:
+            elif hi is not None and self.smoothed_watts > hi:
                 self.feedback.config(text="¡REMA MÁS SUAVE!", fg=RED)
             else:
                 self.feedback.config(text="¡ASÍ, PERFECTO!", fg=GREEN)
             self.draw_gauge()
+            self.draw_history()
         self.root.after(100, self.poll)
 
     def stop(self):

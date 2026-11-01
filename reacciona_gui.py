@@ -283,7 +283,7 @@ class ArcadeGUI:
             watts = self.stream.recent_power(now)
             if watts is not None:
                 self.last_watts = watts
-                self.last_watts_at = now
+                self.last_watts_at = self.stream.last_rx
             shown = self.last_watts
             # Filter visualization only; scoring still uses real PM5 samples.
             if watts is not None and self.last_watts_at > self.last_smoothing_at:
@@ -292,7 +292,7 @@ class ArcadeGUI:
                 else:
                     self.smoothed_watts += .28 * (watts - self.smoothed_watts)
                 self.last_smoothing_at = self.last_watts_at
-                self.power_history.append((now, self.smoothed_watts))
+                self.power_history.append((self.last_watts_at, self.smoothed_watts))
             self.gauge_value = self.smoothed_watts
             self.watts.config(text=f"{shown:.0f} W" if shown is not None else "— W",
                               fg=WHITE if watts is not None else MUTED)

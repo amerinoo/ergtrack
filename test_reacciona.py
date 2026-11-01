@@ -3,7 +3,7 @@ import asyncio
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
-from reacciona import MetricStream, Score, judge, calibrate, Simulator, rest_phase, measure, load_baseline, save_baseline, resolve_baseline
+from reacciona import MetricStream, Score, judge, calibrate, Simulator, rest_phase, measure, load_baseline, save_baseline, resolve_baseline, play_game, Audio
 from pm5_ble import GENERAL, ADDITIONAL, POWER, decode_notification
 
 class GameTests(unittest.TestCase):
@@ -75,6 +75,29 @@ class BaselineTests(unittest.IsolatedAsyncioTestCase):
             path = Path(directory) / "baseline.json"
             path.write_text('{"baseline_w": -100}', encoding="utf-8")
             self.assertIsNone(load_baseline(path))
+
+class GUIEventTests(unittest.IsolatedAsyncioTestCase):
+    async def test_simulated_single_round_events(self):
+        events = []
+        with tempfile.TemporaryDirectory() as directory:
+            args = SimpleNamespace(
+                rounds=1, baseline=112, recalibrate=False, tick=0, seed=42,
+                calibration_file=str(Path(directory) / "calibration.json"),
+                output=str(Path(directory) / "session.json"),
+                on_event=events.append, should_stop=lambda: False,
+            )
+            audio = Audio(enabled=False)
+            try:
+                await play_game(args, MetricStream(), audio, Simulator(MetricStream(), 112, 42))
+            finally:
+                audio.close()
+        kinds = [event["event"] for event in events]
+        self.assertIn("start", kinds)
+        self.assertIn("rest", kinds)
+        self.assertIn("challenge", kinds)
+        self.assertIn("countdown", kinds)
+        self.assertIn("result", kinds)
+        self.assertIn("finished", kinds)
 
 class RestTests(unittest.IsolatedAsyncioTestCase):
     async def test_rest_without_power_does_not_fail(self):

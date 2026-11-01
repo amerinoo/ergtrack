@@ -102,14 +102,14 @@ class ArcadeGUI:
         panel.pack(fill="both", expand=True, padx=28, pady=5)
         self.round_label = self.label(panel, "PREPARADO · 0/3", 15, MUTED, True)
         self.round_label.pack(pady=(0, 3))
-        self.phase_label = self.label(panel, "1. SIÉNTATE EN EL REMO", 20, WHITE, True, wraplength=850)
+        self.phase_label = self.label(panel, "1. SIÉNTATE EN EL REMO", 22, WHITE, True, wraplength=850)
         self.phase_label.pack(pady=(1, 2))
         self.target = self.label(panel, "2. Pulsa MENU en el PM5 para encenderlo", 14, CYAN, True)
         self.target.pack(pady=(0, 2))
         self.watts = self.label(panel, "— W", 16, MUTED, True)
         self.watts.pack(pady=(0, 2))
-        self.feedback = self.label(panel, "3. Pulsa CONECTAR para empezar", 39, WHITE, True, wraplength=840)
-        self.feedback.pack(before=self.target, pady=(3, 7))
+        self.feedback = self.label(panel, "3. Pulsa CONECTAR para empezar", 22, WHITE, True, wraplength=840)
+        self.feedback.pack(pady=(3, 7))
         self.watts.pack_forget()
         self.gauge = tk.Canvas(panel, height=260, bg="#34445B", highlightthickness=0)
         # Mantener el gauge anterior fuera de la vista: el gráfico histórico es el principal.
@@ -254,6 +254,9 @@ class ArcadeGUI:
         self.last_visual_rx = 0.0
         self.last_watts = None
         self.phase = "connecting"
+        self.feedback.pack_forget()
+        self.feedback.pack(pady=(3, 7))
+        self.feedback.config(font=("Helvetica", 22, "bold"))
         self.history.pack_forget()
         self.is_simulation = self.simulated.get()
         self.power_history.clear()
@@ -264,7 +267,7 @@ class ArcadeGUI:
         self.connection.config(text="● SIMULACIÓN" if self.is_simulation else "● CONECTANDO...", fg=GREEN if self.is_simulation else AMBER)
         self.phase_label.config(text="INICIANDO SIMULACIÓN" if self.is_simulation else "CONECTANDO TU REMO", fg=WHITE)
         self.target.config(text="No necesitas una máquina" if self.is_simulation else "Enciende el PM5 pulsando MENU")
-        self.feedback.config(text="PREPARANDO PARTIDA…" if self.is_simulation else "Buscando la máquina…", fg=AMBER)
+        self.feedback.config(text="3. PREPARANDO PARTIDA…" if self.is_simulation else "3. Buscando la máquina…", fg=AMBER)
         self.status.config(text="Generando potencia de prueba…" if self.is_simulation else "No selecciones ningún entrenamiento en el PM5.")
         args = SimpleNamespace(rounds=rounds, baseline=baseline, recalibrate=False,
                                calibration_file=".reacciona-calibration.json", tick=1,
@@ -319,6 +322,9 @@ class ArcadeGUI:
             self.status.pack_forget()
             # First mount the graph: Tkinter cannot use before= on an unpacked widget.
             self.history.pack(fill="both", expand=True, pady=(12, 6))
+            self.feedback.pack_forget()
+            self.feedback.pack(before=self.target, pady=(3, 7))
+            self.feedback.config(font=("Helvetica", 39, "bold"))
             self.watts.pack(pady=(0, 2), before=self.history)
             self.baseline = value["baseline"]
             self.target.config(text="Objetivo de espera: %d–%d W" % (self.baseline*.85, self.baseline*1.15))

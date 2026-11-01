@@ -14,6 +14,16 @@ source .venv/bin/activate
 python -m pip install bleak
 ```
 
+## Interfaz gráfica en macOS
+
+La aplicación Tkinter muestra el estado de conexión del PM5, potencia en directo, objetivos, fases, cuenta atrás, rondas, puntos, vidas, escudo y racha. Permite configurar el número de rondas (1 a 20), la potencia de referencia y un filtro opcional para elegir el PM5 por nombre. Conserva los sonidos del motor y no requiere servidor.
+
+```bash
+python reacciona_gui.py
+```
+
+Para probar sin PM5, marca **Simulación** antes de iniciar. Para cerrar una partida, pulsa **Detener** (la ejecución se detiene al llegar a un punto seguro entre fases). En Mac, Python debe disponer de `tkinter`; si `import tkinter` falla, utiliza una instalación de Python con soporte Tcl/Tk. Si hay varios PM5, introduce un fragmento distintivo del nombre del monitor.
+
 ## Ejecutar
 
 ```bash

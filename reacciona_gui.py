@@ -184,7 +184,13 @@ class ArcadeGUI:
                 if latest - timestamp <= 30:
                     coords.extend((w - 12 - (latest - timestamp) / 30 * (w - 24), y(power)))
             if len(coords) >= 4:
-                canvas.create_line(*coords, fill=CYAN, width=3, smooth=True)
+                canvas.create_line(*coords, fill="#07354C", width=13, smooth=True,
+                                   capstyle=tk.ROUND, joinstyle=tk.ROUND)
+                canvas.create_line(*coords, fill=CYAN, width=8, smooth=True,
+                                   capstyle=tk.ROUND, joinstyle=tk.ROUND)
+                x, current_y = coords[-2], coords[-1]
+                canvas.create_oval(x - 9, current_y - 9, x + 9, current_y + 9,
+                                   fill=WHITE, outline=CYAN, width=3)
 
     def start(self):
         if self.running:

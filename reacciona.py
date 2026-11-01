@@ -80,14 +80,7 @@ class Audio:
             self.paths[event] = path
 
     async def speak(self, message):
-        return  # Voz desactivada; mantener señales sonoras.
-        if not self.enabled:
-            return
-        try:
-            process = await asyncio.create_subprocess_exec('say', '-v', 'Monica', '-r', '190', message)
-            await process.wait()
-        except FileNotFoundError:
-            print('Voz de macOS no disponible.', flush=True)
+        return  # Solo efectos sonoros, sin voz.
 
     async def play(self, event):
         if not self.enabled:
@@ -258,10 +251,17 @@ async def resolve_baseline(args, stream, simulator):
     return baseline
 
 
+def emit(args, event, **payload):
+    callback = getattr(args, "on_event", None)
+    if callback:
+        callback({"event": event, **payload})
+
+
 async def play_game(args, stream, audio, simulator):
     baseline = await resolve_baseline(args, stream, simulator)
     if baseline < 15:
         raise RuntimeError(f"Baseline too low ({baseline:.0f} W). Start moving and retry.")
+    emit(args, "start", baseline=baseline, rounds=args.rounds)
     print(f"Referencia: {baseline:.0f} W. Empieza el juego.")
     print(f"Entre desafíos: mantén {baseline*.85:.0f}-{baseline*1.15:.0f} W, sin dejar de remar.")
     print("REGLAS: +100 por acierto; +25 si el 90% de muestras cumple el objetivo; +50 cada 3 aciertos seguidos.")
@@ -280,6 +280,7 @@ async def play_game(args, stream, audio, simulator):
     for number, kind in enumerate(events, 1):
         if not score.lives:
             break
+        emit(args, "rest", round=number, rounds=args.rounds, low=baseline*.85, high=baseline*1.15)
         print(f"Ronda {number}/{args.rounds}: mantén {baseline*.85:.0f}-{baseline*1.15:.0f} W y espera la señal.", flush=True)
         delay = rng.randint(8, 12)
         await rest_phase(delay, simulator, stream, args.tick)
@@ -288,12 +289,15 @@ async def play_game(args, stream, audio, simulator):
             "defend": f"¡Defiende! Mantén entre {baseline*.85:.0f} y {baseline*1.15:.0f} vatios.",
             "recover": f"¡Recupera! Rema suave entre {baseline*.45:.0f} y {baseline*.75:.0f} vatios.",
         }
+        low, high = {"escape": (baseline*1.30, None), "defend": (baseline*.85, baseline*1.15), "recover": (baseline*.45, baseline*.75)}[kind]
+        emit(args, "challenge", kind=kind, round=number, rounds=args.rounds, low=low, high=high)
         print(instructions[kind], flush=True)
         await audio.play(kind)
         await audio.speak(instructions[kind])
         print("Cuenta atrás: ", end="", flush=True)
         transition = []
         for remaining in (3, 2, 1):
+            emit(args, "countdown", value=remaining)
             print(f"{remaining}... ", end="", flush=True)
             await audio.play("countdown")
             sample = await measure(stream, 1, simulator, kind, args.tick)
@@ -303,6 +307,7 @@ async def play_game(args, stream, audio, simulator):
             transition.extend(sample)
         print("¡YA!", flush=True)
         await audio.play("ready")
+        emit(args, "evaluating", seconds=5 if kind == "escape" else 8)
         print("Evaluando...", flush=True)
         powers = await measure(stream, 5 if kind == "escape" else 8, simulator, kind, args.tick)
         if transition is None or powers is None:
@@ -320,6 +325,7 @@ async def play_game(args, stream, audio, simulator):
         lo, hi = {"escape": (baseline * 1.30, None), "defend": (baseline * .85, baseline * 1.15), "recover": (baseline * .45, baseline * .75)}[kind]
         hits = sum(p >= lo if hi is None else lo <= p <= hi for p in powers)
         goal = f"mínimo {lo:.0f} W" if hi is None else f"{lo:.0f}-{hi:.0f} W"
+        emit(args, "result", valid=valid, hits=hits, samples=len(powers), earned=reward["earned"], points=score.points, lives=score.lives, shield=score.shield, streak=score.streak, excellent=excellent, average=statistics.mean(powers))
         print(f"Resultado: {hits}/{len(powers)} muestras dentro del objetivo ({goal}); media {statistics.mean(powers):.0f} W.", flush=True)
         await audio.speak("¡Conseguido! Ganas puntos. Vuelve al ritmo cómodo." if valid else "No conseguido. Vuelve al ritmo cómodo para la próxima ronda.")
         if reward["shield_gained"]:
@@ -334,6 +340,7 @@ async def play_game(args, stream, audio, simulator):
     path = Path(args.output)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(output, indent=2) + "\n", encoding="utf-8")
+    emit(args, "finished", points=score.points, successes=score.successes, attempts=score.attempts)
     print(f"RESULTADO: {score.points} puntos; {score.successes}/{score.attempts} aciertos; guardado en {path}")
 
 async def main(args):

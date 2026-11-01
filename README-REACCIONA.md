@@ -2,6 +2,8 @@
 
 Primer prototipo **local, sin PWA ni gateway**, sobre el BLE real de Concept2 PM5 y el código de ergtrack.
 
+La conexión BLE se implementa **una sola vez** en `pm5_ble.py`. Tanto `reacciona.py` como `ble_drag_test.py` lo importan, comparten descubrimiento, selección, conexión, suscripción a 0x31/0x32/0x36 y decodificación. Las pruebas de decodificación no necesitan hardware.
+
 ## Instalación
 
 En macOS, con Python 3.10+:

@@ -307,6 +307,13 @@ async def play_game(args, stream, audio, simulator):
             raise RuntimeError("No llegan datos de potencia del PM5 durante el desafío. Sin penalización.")
         valid, excellent = judge(kind, powers, baseline)
         reward = score.apply(kind, valid, excellent if valid else False)
+        if valid:
+            bonus = []
+            if excellent:
+                bonus.append("+25 excelencia")
+            if score.streak % 3 == 0:
+                bonus.append("+50 racha")
+            print("Puntos: +100 acierto" + (" " + " ".join(bonus) if bonus else "") + f" = +{reward['earned']}.", flush=True)
         await audio.play("success" if valid else "fail")
         lo, hi = {"escape": (baseline * 1.30, None), "defend": (baseline * .85, baseline * 1.15), "recover": (baseline * .45, baseline * .75)}[kind]
         hits = sum(p >= lo if hi is None else lo <= p <= hi for p in powers)
@@ -318,7 +325,7 @@ async def play_game(args, stream, audio, simulator):
         log.append({"round":number, "event":kind, "valid":valid, "excellent":excellent if valid else False,
                     "power_w":[round(p, 1) for p in powers], "earned":reward["earned"],
                     "lives":score.lives, "shield":score.shield, "points":score.points})
-        print(f"{'SUCCESS' if valid else 'MISS'} +{reward['earned']} | total={score.points} lives={score.lives} shield={score.shield}", flush=True)
+        print(f"{'ACIERTO' if valid else 'FALLO'} +{reward['earned']} | total={score.points} vidas={score.lives} escudo={score.shield}", flush=True)
     await audio.play("end")
     output = {"game":"reacciona", "mode":"simulated" if simulator else "PM5", "baseline_w":baseline,
               "real_elapsed_seconds":round(time.monotonic() - started, 1), "score":vars(score), "events":log}

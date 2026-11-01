@@ -1,5 +1,6 @@
 import unittest
-from reacciona import MetricStream, Score, judge
+import asyncio
+from reacciona import MetricStream, Score, judge, calibrate, Simulator
 from pm5_ble import GENERAL, ADDITIONAL, POWER, decode_notification
 
 class GameTests(unittest.TestCase):
@@ -49,6 +50,27 @@ class GameTests(unittest.TestCase):
         self.assertIsNone(stream.recent_power(13))
         stream.update(-1, now=14)
         self.assertIsNone(stream.recent_power(14))
+
+class CalibrationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_simulated_calibration(self):
+        stream = MetricStream()
+        baseline = await calibrate(stream, Simulator(stream, 110, 42), 0)
+        self.assertGreater(baseline, 100)
+        self.assertLess(baseline, 120)
+
+    async def test_waits_for_movement_instead_of_failing_immediately(self):
+        stream = MetricStream()
+        async def start_later():
+            await asyncio.sleep(.05)
+            async def feed():
+                for _ in range(48):
+                    stream.update(110)
+                    await asyncio.sleep(.001)
+            await feed()
+        task = asyncio.create_task(start_later())
+        with self.assertRaisesRegex(RuntimeError, "Calibration incomplete"):
+            await calibrate(stream, None, .001, wait_timeout=1)
+        await task
 
 if __name__ == "__main__":
     unittest.main()

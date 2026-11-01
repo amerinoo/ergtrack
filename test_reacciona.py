@@ -68,9 +68,9 @@ class CalibrationTests(unittest.IsolatedAsyncioTestCase):
                     await asyncio.sleep(.001)
             await feed()
         task = asyncio.create_task(start_later())
-        with self.assertRaisesRegex(RuntimeError, "Calibration incomplete"):
-            await calibrate(stream, None, .001, wait_timeout=1)
+        baseline = await calibrate(stream, None, .001, wait_timeout=1)
         await task
+        self.assertEqual(baseline, 110)
 
 if __name__ == "__main__":
     unittest.main()

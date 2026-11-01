@@ -1,6 +1,6 @@
 import unittest
 import asyncio
-from reacciona import MetricStream, Score, judge, calibrate, Simulator
+from reacciona import MetricStream, Score, judge, calibrate, Simulator, rest_phase, measure
 from pm5_ble import GENERAL, ADDITIONAL, POWER, decode_notification
 
 class GameTests(unittest.TestCase):
@@ -50,6 +50,19 @@ class GameTests(unittest.TestCase):
         self.assertIsNone(stream.recent_power(13))
         stream.update(-1, now=14)
         self.assertIsNone(stream.recent_power(14))
+
+class RestTests(unittest.IsolatedAsyncioTestCase):
+    async def test_rest_without_power_does_not_fail(self):
+        stream = MetricStream()
+        await rest_phase(0, None, stream, 0)
+        self.assertIsNone(stream.recent_power(100))
+
+    async def test_simulated_active_challenge(self):
+        stream = MetricStream()
+        sim = Simulator(stream, 110, 4)
+        readings = await measure(stream, 5, sim, "escape", 0)
+        self.assertEqual(len(readings), 5)
+        self.assertTrue(all(power > 130 for power in readings))
 
 class CalibrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_simulated_calibration(self):

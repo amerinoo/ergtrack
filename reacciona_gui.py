@@ -81,9 +81,9 @@ class ArcadeGUI:
         self.round_label.pack(pady=(0, 3))
         self.phase_label = self.label(panel, "Pulsa Iniciar partida", 25, WHITE, True, wraplength=670)
         self.phase_label.pack(pady=(3, 3))
-        self.target = self.label(panel, "Objetivo: —", 16, CYAN, True
+        self.target = self.label(panel, "Objetivo: —", 16, CYAN, True)
         self.target.pack(pady=(0, 3))
-        self.watts = self.label(panel, "— W", 32, WHITE, True
+        self.watts = self.label(panel, "— W", 32, WHITE, True)
         self.watts.pack(pady=(0, 2))
         self.feedback = self.label(panel, "Sin datos de potencia", 16, MUTED, True)
         self.feedback.pack()

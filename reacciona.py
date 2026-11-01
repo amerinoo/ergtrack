@@ -210,7 +210,12 @@ async def main(args):
         if args.simulate:
             await play_game(args, stream, audio, Simulator(stream, args.simulate_watts, args.seed))
         else:
-            async with PM5Connection(lambda metric: (stream.update(metric.watts, metric.received_at) if metric.kind == "power" else setattr(stream, "distance", metric.distance_m) if metric.kind == "general" else None), args.name):
+            def on_metric(metric):
+                if metric.kind == "power":
+                    stream.update(metric.watts, metric.received_at)
+                elif metric.kind == "general":
+                    stream.distance = metric.distance_m
+            async with PM5Connection(on_metric, args.name):
                 print("Connected. Begin calibration.")
                 await play_game(args, stream, audio, None)
     finally:

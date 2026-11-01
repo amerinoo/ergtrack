@@ -233,11 +233,11 @@ class ArcadeGUI:
         self.stop_flag.clear()
         self.start_button.config(state="disabled")
         self.stop_button.config(state="normal")
-        self.connection.config(text="● CONECTANDO...", fg=AMBER)
-        self.phase_label.config(text="CONECTANDO TU REMO", fg=WHITE)
-        self.target.config(text="Enciende el PM5 pulsando MENU")
-        self.feedback.config(text="Buscando la máquina…", fg=AMBER)
-        self.status.config(text="No selecciones ningún entrenamiento en el PM5.")
+        self.connection.config(text="● SIMULACIÓN" if self.is_simulation else "● CONECTANDO...", fg=GREEN if self.is_simulation else AMBER)
+        self.phase_label.config(text="INICIANDO SIMULACIÓN" if self.is_simulation else "CONECTANDO TU REMO", fg=WHITE)
+        self.target.config(text="No necesitas una máquina" if self.is_simulation else "Enciende el PM5 pulsando MENU")
+        self.feedback.config(text="PREPARANDO PARTIDA…" if self.is_simulation else "Buscando la máquina…", fg=AMBER)
+        self.status.config(text="Generando potencia de prueba…" if self.is_simulation else "No selecciones ningún entrenamiento en el PM5.")
         args = SimpleNamespace(rounds=rounds, baseline=baseline, recalibrate=False,
                                calibration_file=".reacciona-calibration.json", tick=1,
                                output="reacciona-last-session.json", seed=42,
@@ -289,8 +289,9 @@ class ArcadeGUI:
             self.phase = "playing"
             self.config_panel.pack_forget()
             self.status.pack_forget()
-            self.watts.pack(pady=(0, 2), before=self.status)
+            # First mount the graph: Tkinter cannot use before= on an unpacked widget.
             self.history.pack(fill="both", expand=True, pady=(12, 6))
+            self.watts.pack(pady=(0, 2), before=self.history)
             self.baseline = value["baseline"]
             self.target.config(text="Objetivo de espera: %d–%d W" % (self.baseline*.85, self.baseline*1.15))
         elif event == "rest":

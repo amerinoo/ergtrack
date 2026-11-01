@@ -73,6 +73,10 @@ class ArcadeGUI:
         saved = load_baseline(".reacciona-calibration.json")
         self.baseline_entry.insert(0, str(int(saved or 112)))
         self.baseline_entry.grid(row=1, column=1, padx=(0, 20), sticky="w")
+        self.auto_calibrate = tk.BooleanVar(value=False)
+        tk.Checkbutton(config, text="Calibrar con 45 remadas", variable=self.auto_calibrate,
+                       bg=PANEL, fg=WHITE, selectcolor=BG, activebackground=PANEL,
+                       activeforeground=WHITE).grid(row=2, column=1, columnspan=2, sticky="w", pady=(8, 0))
         self.label(config, "Filtro PM5 (opcional)", 11, MUTED).grid(row=0, column=2, sticky="w")
         self.pm5_name = tk.Entry(config, width=19, font=("Helvetica", 15))
         self.pm5_name.grid(row=1, column=2, padx=(0, 20), sticky="w")
@@ -248,6 +252,7 @@ class ArcadeGUI:
         except ValueError:
             messagebox.showerror("Configuración incorrecta", "Rondas: 1-20. Referencia: 15-3000 W.")
             return
+        recalibrate = self.auto_calibrate.get()
         self.baseline = baseline
         self.smoothed_watts = None
         self.last_smoothing_at = 0.0
@@ -269,7 +274,7 @@ class ArcadeGUI:
         self.target.config(text="No necesitas una máquina" if self.is_simulation else "Enciende el PM5 pulsando MENU")
         self.feedback.config(text="3. PREPARANDO PARTIDA…" if self.is_simulation else "3. Buscando la máquina…", fg=AMBER)
         self.status.config(text="Generando potencia de prueba…" if self.is_simulation else "No selecciones ningún entrenamiento en el PM5.")
-        args = SimpleNamespace(rounds=rounds, baseline=baseline, recalibrate=False,
+        args = SimpleNamespace(rounds=rounds, baseline=None if recalibrate else baseline, recalibrate=recalibrate,
                                calibration_file=".reacciona-calibration.json", tick=1,
                                output="reacciona-last-session.json", seed=42,
                                name=self.pm5_name.get().strip(), on_event=lambda value: self.messages.put(("event", value)),
@@ -284,7 +289,7 @@ class ArcadeGUI:
             try:
                 if simulated:
                     self.messages.put(("connected", "SIMULACIÓN"))
-                    simulator = Simulator(stream, args.baseline, args.seed)
+                    simulator = Simulator(stream, self.baseline, args.seed)
                     await play_game(args, stream, audio, simulator)
                 else:
                     def metric_received(metric):

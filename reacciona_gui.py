@@ -92,7 +92,7 @@ class ArcadeGUI:
         self.watts.pack(pady=(0, 2))
         self.feedback = self.label(panel, "3. Pulsa CONECTAR para empezar", 24, MUTED, True)
         self.feedback.pack()
-        self.gauge = tk.Canvas(panel, height=160, bg="#34445B", highlightthickness=0)
+        self.gauge = tk.Canvas(panel, height=260, bg="#34445B", highlightthickness=0)
         self.gauge.pack(fill="x", pady=(12, 4))
         self.gauge.bind("<Configure>", lambda _: self.draw_gauge())
         self.gauge_value = None
@@ -142,16 +142,18 @@ class ArcadeGUI:
             relative = (watts - center) / span
             return 16 + (width - 32) * max(0, min(1, .5 + .5 * relative))
         left, right = position(lo), position(visual_hi)
-        self.gauge.create_rectangle(16, 30, width - 16, 120, fill="#34445B", outline="")
-        self.gauge.create_rectangle(left, 30, right, 120, fill="#29956B", outline="")
-        self.gauge.create_line(left, 24, left, 126, fill=GREEN, width=3)
+        height = max(160, self.gauge.winfo_height())
+        top, bottom = 30, height - 42
+        self.gauge.create_rectangle(16, top, width - 16, bottom, fill="#34445B", outline="")
+        self.gauge.create_rectangle(left, top, right, bottom, fill="#29956B", outline="")
+        self.gauge.create_line(left, top-6, left, bottom+6, fill=GREEN, width=3)
         if hi is not None:
-            self.gauge.create_line(right, 24, right, 126, fill=GREEN, width=3)
+            self.gauge.create_line(right, top-6, right, bottom+6, fill=GREEN, width=3)
         if self.gauge_value is not None:
             x = position(self.gauge_value)
-            self.gauge.create_line(x, 17, x, 134, fill=WHITE, width=7)
-            self.gauge.create_oval(x - 10, 65, x + 10, 85, fill=WHITE, outline="")
-        self.gauge.create_text(width / 2, 146, text="ZONA OBJETIVO", fill=GREEN,
+            self.gauge.create_line(x, top-13, x, bottom+13, fill=WHITE, width=7)
+            self.gauge.create_oval(x - 10, (top+bottom)/2-10, x + 10, (top+bottom)/2+10, fill=WHITE, outline="")
+        self.gauge.create_text(width / 2, height - 17, text="ZONA OBJETIVO", fill=GREEN,
                                font=("Helvetica", 11, "bold"))
 
     def draw_history(self):

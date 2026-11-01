@@ -11,7 +11,7 @@ import time
 from collections import deque
 
 from pm5_ble import PM5Connection
-from reacciona import Audio, MetricStream, Simulator, play_game, load_baseline
+from reacciona import Audio, MetricStream, Simulator, play_game, load_baseline, calibrate, save_baseline
 
 BG = "#101827"
 PANEL = "#202D40"
@@ -73,10 +73,6 @@ class ArcadeGUI:
         saved = load_baseline(".reacciona-calibration.json")
         self.baseline_entry.insert(0, str(int(saved or 112)))
         self.baseline_entry.grid(row=1, column=1, padx=(0, 20), sticky="w")
-        self.auto_calibrate = tk.BooleanVar(value=False)
-        tk.Checkbutton(config, text="Medir referencia (45 muestras)", variable=self.auto_calibrate,
-                       bg=PANEL, fg=WHITE, selectcolor=BG, activebackground=PANEL,
-                       activeforeground=WHITE).grid(row=2, column=1, columnspan=2, sticky="w", pady=(8, 0))
         self.label(config, "Filtro PM5 (opcional)", 11, MUTED).grid(row=0, column=2, sticky="w")
         self.pm5_name = tk.Entry(config, width=19, font=("Helvetica", 15))
         self.pm5_name.grid(row=1, column=2, padx=(0, 20), sticky="w")
@@ -92,6 +88,8 @@ class ArcadeGUI:
         self.stop_button = self.action_button(controls, "■  DETENER", self.stop,
                                               "#34445B", WHITE, enabled=False)
         self.stop_button.pack(side="left", fill="x", expand=True, padx=(8, 0))
+        self.calibrate_button = self.action_button(controls, "MEDIR REFERENCIA", self.start_calibration, "#286F72", WHITE)
+        self.calibrate_button.pack(side="left", fill="x", expand=True, padx=(8, 0))
 
         metrics = tk.Frame(self.root, bg=BG)
         metrics.pack(side="bottom", fill="x", padx=28, pady=6)
@@ -252,7 +250,6 @@ class ArcadeGUI:
         except ValueError:
             messagebox.showerror("Configuración incorrecta", "Rondas: 1-20. Referencia: 15-3000 W.")
             return
-        recalibrate = self.auto_calibrate.get()
         self.baseline = baseline
         self.smoothed_watts = None
         self.last_smoothing_at = 0.0
@@ -269,17 +266,73 @@ class ArcadeGUI:
         self.stop_flag.clear()
         self.set_button_enabled(self.start_button, False)
         self.set_button_enabled(self.stop_button, True)
+        self.set_button_enabled(self.calibrate_button, False)
         self.connection.config(text="● SIMULACIÓN" if self.is_simulation else "● CONECTANDO...", fg=GREEN if self.is_simulation else AMBER)
         self.phase_label.config(text="INICIANDO SIMULACIÓN" if self.is_simulation else "CONECTANDO TU REMO", fg=WHITE)
         self.target.config(text="No necesitas una máquina" if self.is_simulation else "Enciende el PM5 pulsando MENU")
         self.feedback.config(text="3. PREPARANDO PARTIDA…" if self.is_simulation else "3. Buscando la máquina…", fg=AMBER)
         self.status.config(text="Generando potencia de prueba…" if self.is_simulation else "No selecciones ningún entrenamiento en el PM5.")
-        args = SimpleNamespace(rounds=rounds, baseline=None if recalibrate else baseline, recalibrate=recalibrate,
+        args = SimpleNamespace(rounds=rounds, baseline=baseline, recalibrate=False,
                                calibration_file=".reacciona-calibration.json", tick=1,
                                output="reacciona-last-session.json", seed=42,
                                name=self.pm5_name.get().strip(), on_event=lambda value: self.messages.put(("event", value)),
                                should_stop=self.stop_flag.is_set)
         threading.Thread(target=self.worker, args=(args, self.simulated.get()), daemon=True).start()
+
+    def start_calibration(self):
+        if self.running:
+            return
+        self.is_simulation = self.simulated.get()
+        self.running = True
+        self.stop_flag.clear()
+        self.phase = "calibration"
+        self.stream = None
+        self.smoothed_watts = None
+        self.last_watts = None
+        self.last_smoothing_at = 0.0
+        self.last_visual_rx = 0.0
+        self.history.pack_forget()
+        self.watts.pack_forget()
+        self.round_label.config(text="MEDIR REFERENCIA")
+        self.phase_label.config(text="REMA A RITMO CÓMODO" if not self.is_simulation else "SIMULANDO CALIBRACIÓN", fg=WHITE)
+        self.target.config(text="Enciende el PM5 con MENU y empieza a remar" if not self.is_simulation else "Calculando la referencia simulada")
+        self.feedback.config(text="ESPERANDO LAS PRIMERAS REMADAS" if not self.is_simulation else "INICIANDO MEDICIÓN", fg=CYAN,
+                             font=("Helvetica", 22, "bold"))
+        self.status.config(text="La partida NO empezará después de medir.")
+        if not self.status.winfo_manager():
+            self.status.pack(pady=(2, 5), before=self.history)
+        self.set_button_enabled(self.start_button, False)
+        self.set_button_enabled(self.calibrate_button, False)
+        self.set_button_enabled(self.stop_button, True)
+        threading.Thread(target=self.calibration_worker, args=(self.is_simulation,), daemon=True).start()
+
+    def calibration_worker(self, simulated):
+        async def work():
+            stream = MetricStream()
+            self.stream = stream
+            async def run_calibration(simulator):
+                value = await calibrate(stream, simulator, 1,
+                                        on_progress=lambda n: self.messages.put(("calibration_progress", n)))
+                if not simulated:
+                    save_baseline(".reacciona-calibration.json", value)
+                self.messages.put(("calibration_result", value))
+            if simulated:
+                simulator = Simulator(stream, 112, 42)
+                self.messages.put(("connected", "SIMULACIÓN"))
+                await run_calibration(simulator)
+            else:
+                def on_metric(metric):
+                    if metric.kind == "power":
+                        stream.update(metric.watts, metric.received_at)
+                async with PM5Connection(on_metric, self.pm5_name.get().strip(), interactive=False):
+                    self.messages.put(("connected", "PM5 CONECTADO"))
+                    await run_calibration(None)
+        try:
+            asyncio.run(work())
+        except Exception as exc:
+            self.messages.put(("error", str(exc)))
+        finally:
+            self.messages.put(("done", None))
 
     def worker(self, args, simulated):
         async def work():
@@ -405,6 +458,7 @@ class ArcadeGUI:
                     self.running = False
                     self.set_button_enabled(self.start_button, True)
                     self.set_button_enabled(self.stop_button, False)
+                    self.set_button_enabled(self.calibrate_button, True)
         except queue.Empty:
             pass
         if self.stream is not None and self.running:

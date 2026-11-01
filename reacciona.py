@@ -143,19 +143,37 @@ def judge(kind, powers, baseline):
     return hits / len(ratios) >= .75, hits / len(ratios) >= .9
 
 async def measure(stream, count, simulator, target, interval):
+    """Evaluate active effort, waiting for valid samples instead of failing on one gap."""
     readings = []
     for _ in range(count):
         if simulator:
             await simulator.tick(target)
             await asyncio.sleep(interval if interval else 0)
+            power = stream.recent_power(simulator.virtual_time)
         else:
-            await asyncio.sleep(interval)
-        now = simulator.virtual_time if simulator else time.monotonic()
-        power = stream.recent_power(now)
+            deadline = time.monotonic() + 12
+            power = None
+            while time.monotonic() < deadline:
+                await asyncio.sleep(interval)
+                power = stream.recent_power(time.monotonic())
+                if power is not None:
+                    break
+            if power is None:
+                print("No recent power samples during challenge; pausing without penalty.", flush=True)
+                return None
         if power is None:
             return None
         readings.append(power)
     return readings
+
+async def rest_phase(seconds, simulator, stream, interval):
+    """Rest does not require fresh power samples; no false disconnect on inactivity."""
+    if simulator:
+        for _ in range(seconds):
+            await simulator.tick("baseline")
+            await asyncio.sleep(interval if interval else 0)
+    else:
+        await asyncio.sleep(seconds)
 
 async def calibrate(stream, simulator, interval, wait_timeout=90):
     """Wait for actual movement before starting the calibration clock."""
@@ -209,14 +227,13 @@ async def play_game(args, stream, audio, simulator):
             break
         print(f"Round {number}/8: wait for the sound...", flush=True)
         delay = rng.randint(8, 12)
-        if await measure(stream, delay, simulator, "baseline", args.tick) is None:
-            raise RuntimeError("Lost power data; stopped without penalty")
+        await rest_phase(delay, simulator, stream, args.tick)
         await audio.play(kind)
         print({"escape":"ESCAPE! Accelerate", "defend":"DEFEND! Hold steady", "recover":"RECOVER! Slow down"}[kind], flush=True)
         transition = await measure(stream, 3, simulator, kind, args.tick)
         powers = await measure(stream, 5 if kind == "escape" else 8, simulator, kind, args.tick)
         if transition is None or powers is None:
-            raise RuntimeError("Lost power data; stopped without penalty")
+            raise RuntimeError("PM5 power updates paused during challenge; try again when readings resume (no points/lives deducted)")
         valid, excellent = judge(kind, powers, baseline)
         reward = score.apply(kind, valid, excellent if valid else False)
         await audio.play("success" if valid else "fail")

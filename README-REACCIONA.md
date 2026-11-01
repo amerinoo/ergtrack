@@ -23,14 +23,24 @@ python reacciona.py --simulate --tick 0 --mute
 # Simulación con sonidos
 python reacciona.py --simulate
 
-# BLE real, seleccionar PM5 por su número
+# BLE real: reutiliza la calibración guardada o calibra si no existe
 python reacciona.py
+
+# Pruebas rápidas: usa los 112 W ya medidos, sin calibrar
+python reacciona.py --baseline 112
+
+# Forzar una nueva calibración y guardarla
+python reacciona.py --recalibrate
 
 # Ejecutar pruebas
 python -m unittest test_reacciona.py -v
 ```
 
 El juego detecta monitores que anuncian PM5 mediante BLE. Si encuentra uno solo lo selecciona automáticamente; si encuentra varios, muestra una lista numerada para elegir sin conocer sus números. `--name` sigue disponible como filtro opcional. El PM5 debe estar despierto, y macOS debe permitir Bluetooth al terminal. No se envían comandos de escritura al monitor.
+
+## Calibración reutilizable
+
+La primera partida real sin configuración guarda la referencia en `.reacciona-calibration.json`. Las siguientes partidas la reutilizan automáticamente. `--baseline W` utiliza temporalmente un valor manual (no lo guarda), y `--recalibrate` mide y sustituye el valor guardado. La simulación no modifica la calibración real. La referencia corresponde a la persona y máquina con las que se midió; recalibrar al cambiar de deportista o de máquina.
 
 ## Mecánicas
 

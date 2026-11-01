@@ -22,13 +22,13 @@ python reacciona.py --simulate --tick 0 --mute
 python reacciona.py --simulate
 
 # BLE real, seleccionar PM5 por su número
-python reacciona.py --name 431369979
+python reacciona.py
 
 # Ejecutar pruebas
 python -m unittest test_reacciona.py -v
 ```
 
-El juego detecta monitores que anuncian PM5 mediante BLE. El PM5 debe estar despierto, y macOS debe permitir Bluetooth al terminal. No se envían comandos de escritura al monitor.
+El juego detecta monitores que anuncian PM5 mediante BLE. Si encuentra uno solo lo selecciona automáticamente; si encuentra varios, muestra una lista numerada para elegir sin conocer sus números. `--name` sigue disponible como filtro opcional. El PM5 debe estar despierto, y macOS debe permitir Bluetooth al terminal. No se envían comandos de escritura al monitor.
 
 ## Mecánicas
 

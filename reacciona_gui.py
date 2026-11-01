@@ -173,9 +173,18 @@ class ArcadeGUI:
         lo, hi = self.current_bounds
         if lo is None:
             lo, hi = self.baseline * .85, self.baseline * 1.15
-        top = max((hi or lo * 1.5) * 1.35, self.baseline * 1.8, 100)
-        y = lambda power: h - 10 - max(0, min(1, power / top)) * (h - 20)
-        canvas.create_rectangle(0, y(hi if hi is not None else top), w, y(lo), fill="#20493D", outline="")
+        # Zoom vertical relativo al objetivo: franja legible incluso desde el remo.
+        visual_hi = hi if hi is not None else lo * 1.25
+        midpoint = (lo + visual_hi) / 2
+        half_range = max((visual_hi - lo) / 2, 1.0)
+        visible_half = half_range * 1.9
+        minimum = max(0.0, midpoint - visible_half)
+        maximum = midpoint + visible_half
+        y = lambda power: h - 12 - max(0, min(1, (power - minimum) / max(1, maximum - minimum))) * (h - 24)
+        canvas.create_rectangle(0, y(visual_hi), w, y(lo), fill="#246448", outline="")
+        canvas.create_line(0, y(lo), w, y(lo), fill=GREEN, width=2)
+        if hi is not None:
+            canvas.create_line(0, y(hi), w, y(hi), fill=GREEN, width=2)
         canvas.create_text(9, 8, text="ESFUERZO · ÚLTIMOS 30 S", anchor="nw", fill=MUTED, font=("Helvetica", 9))
         if len(self.power_history) > 1:
             latest = self.power_history[-1][0]

@@ -88,7 +88,8 @@ class GUIEventTests(unittest.IsolatedAsyncioTestCase):
             )
             audio = Audio(enabled=False)
             try:
-                await play_game(args, MetricStream(), audio, Simulator(MetricStream(), 112, 42))
+                stream = MetricStream()
+                await play_game(args, stream, audio, Simulator(stream, 112, 42))
             finally:
                 audio.close()
         kinds = [event["event"] for event in events]

@@ -79,6 +79,7 @@ class Audio:
             self.paths[event] = path
 
     async def speak(self, message):
+        return  # Voz desactivada; mantener señales sonoras.
         if not self.enabled:
             return
         try:
@@ -261,19 +262,24 @@ async def play_game(args, stream, audio, simulator):
     if baseline < 15:
         raise RuntimeError(f"Baseline too low ({baseline:.0f} W). Start moving and retry.")
     print(f"Referencia: {baseline:.0f} W. Empieza el juego.")
-    print("Entre desafíos, rema a ritmo cómodo.")
+    print(f"Entre desafíos: mantén {baseline*.85:.0f}-{baseline*1.15:.0f} W, sin dejar de remar.")
+    print("REGLAS: +100 por acierto; +25 si el 90% de muestras cumple el objetivo; +50 cada 3 aciertos seguidos.")
+    print("ESCAPAR: al menos 130% de referencia (4/5 lecturas); DEFENDER: 85%-115%; RECUPERAR: 45%-75% (6/8 lecturas).")
+    print("Tres vidas; fallar ESCAPAR quita una vida; dos DEFENDER correctos dan un escudo.")
     await audio.speak("Bienvenido a Reacciona. Entre desafíos sigue remando a ritmo cómodo. Escapar significa remar fuerte, defender significa mantener tu ritmo y recuperar significa remar suave. Después de cada aviso tendrás tres segundos para cambiar el esfuerzo.")
     score = Score()
     rng = random.Random(args.seed)
-    events = ["escape"] * 3 + ["defend"] * 3 + ["recover"] * 2
-    rng.shuffle(events)
+    events = [rng.choice(["escape", "defend", "recover"]) for _ in range(args.rounds)]
+    for i in range(1, len(events)):
+        if events[i] == "escape" and events[i - 1] == "escape":
+            events[i] = rng.choice(["defend", "recover"])
     log = []
     started = time.monotonic()
     await audio.play("ready")
     for number, kind in enumerate(events, 1):
         if not score.lives:
             break
-        print(f"Ronda {number}/8: rema cómodo y espera la señal.", flush=True)
+        print(f"Ronda {number}/{args.rounds}: mantén {baseline*.85:.0f}-{baseline*1.15:.0f} W y espera la señal.", flush=True)
         delay = rng.randint(8, 12)
         await rest_phase(delay, simulator, stream, args.tick)
         instructions = {
@@ -284,8 +290,17 @@ async def play_game(args, stream, audio, simulator):
         print(instructions[kind], flush=True)
         await audio.play(kind)
         await audio.speak(instructions[kind])
-        print("Tres segundos para cambiar el esfuerzo.", flush=True)
-        transition = await measure(stream, 3, simulator, kind, args.tick)
+        print("Cuenta atrás: ", end="", flush=True)
+        transition = []
+        for remaining in (3, 2, 1):
+            print(f"{remaining}... ", end="", flush=True)
+            sample = await measure(stream, 1, simulator, kind, args.tick)
+            if sample is None:
+                transition = None
+                break
+            transition.extend(sample)
+        print("¡YA!", flush=True)
+        await audio.play("ready")
         print("Evaluando...", flush=True)
         powers = await measure(stream, 5 if kind == "escape" else 8, simulator, kind, args.tick)
         if transition is None or powers is None:
@@ -341,8 +356,11 @@ if __name__ == "__main__":
     parser.add_argument("--tick", type=float, default=1, help="Seconds per sample; simulation can use 0")
     parser.add_argument("--mute", action="store_true")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--rounds", type=int, default=3, help="Número de rondas, entre 1 y 20")
     parser.add_argument("--output", default="reacciona-last-session.json")
     args = parser.parse_args()
+    if not 1 <= args.rounds <= 20:
+        parser.error("--rounds debe estar entre 1 y 20")
     if args.baseline is not None and not valid_baseline(args.baseline):
         parser.error("--baseline must be between 15 and 3000 W")
     if args.baseline is not None and args.recalibrate:

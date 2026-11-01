@@ -1,6 +1,9 @@
 import unittest
 import asyncio
-from reacciona import MetricStream, Score, judge, calibrate, Simulator, rest_phase, measure
+import tempfile
+from pathlib import Path
+from types import SimpleNamespace
+from reacciona import MetricStream, Score, judge, calibrate, Simulator, rest_phase, measure, load_baseline, save_baseline, resolve_baseline
 from pm5_ble import GENERAL, ADDITIONAL, POWER, decode_notification
 
 class GameTests(unittest.TestCase):
@@ -50,6 +53,28 @@ class GameTests(unittest.TestCase):
         self.assertIsNone(stream.recent_power(13))
         stream.update(-1, now=14)
         self.assertIsNone(stream.recent_power(14))
+
+class BaselineTests(unittest.IsolatedAsyncioTestCase):
+    async def test_save_and_reuse_without_calibration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "baseline.json"
+            save_baseline(path, 112)
+            self.assertEqual(load_baseline(path), 112)
+            args = SimpleNamespace(baseline=None, recalibrate=False, calibration_file=str(path), tick=0)
+            self.assertEqual(await resolve_baseline(args, MetricStream(), None), 112)
+
+    async def test_manual_override_without_storage(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "baseline.json"
+            args = SimpleNamespace(baseline=112, recalibrate=False, calibration_file=str(path), tick=0)
+            self.assertEqual(await resolve_baseline(args, MetricStream(), None), 112)
+            self.assertFalse(path.exists())
+
+    async def test_invalid_file_ignored(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "baseline.json"
+            path.write_text('{"baseline_w": -100}', encoding="utf-8")
+            self.assertIsNone(load_baseline(path))
 
 class RestTests(unittest.IsolatedAsyncioTestCase):
     async def test_rest_without_power_does_not_fail(self):

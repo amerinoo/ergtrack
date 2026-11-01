@@ -79,6 +79,22 @@ class ArcadeGUI:
         self.simulated = tk.BooleanVar(value=False)
         tk.Checkbutton(config, text="Simulación", variable=self.simulated, bg=PANEL, fg=WHITE, selectcolor=BG, activebackground=PANEL, activeforeground=WHITE).grid(row=1, column=3, sticky="w")
 
+        controls = tk.Frame(self.root, bg=BG)
+        self.controls_panel = controls
+        controls.pack(side="bottom", fill="x", padx=28, pady=(4, 12))
+        self.start_button = tk.Button(controls, text="▶ CONECTAR Y PREPARAR", command=self.start, bg=CYAN, fg="white", font=("Helvetica", 15, "bold"), relief="flat", padx=18, pady=12)
+        self.start_button.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        self.stop_button = tk.Button(controls, text="■ Detener", command=self.stop, bg="#34445B", fg="white", font=("Helvetica", 15), relief="flat", padx=18, pady=12, state="disabled")
+        self.stop_button.pack(side="left", fill="x", expand=True, padx=(8, 0))
+
+        metrics = tk.Frame(self.root, bg=BG)
+        metrics.pack(side="bottom", fill="x", padx=28, pady=6)
+        self.points = self.metric(metrics, "PUNTOS", "0", 0)
+        self.lives = self.metric(metrics, "VIDAS", "3", 1)
+        self.shield = self.metric(metrics, "ESCUDO", "0", 2)
+        self.streak = self.metric(metrics, "RACHA", "0", 3)
+
+
         panel = tk.Frame(self.root, bg=PANEL, padx=24, pady=16)
         self.game_panel = panel
         panel.pack(fill="both", expand=True, padx=28, pady=5)
@@ -104,20 +120,6 @@ class ArcadeGUI:
         # No graph until movement/gameplay: keep onboarding clear and compact.
         self.history.bind("<Configure>", lambda _: self.draw_history())
 
-        metrics = tk.Frame(self.root, bg=BG)
-        metrics.pack(fill="x", padx=28, pady=6)
-        self.points = self.metric(metrics, "PUNTOS", "0", 0)
-        self.lives = self.metric(metrics, "VIDAS", "3", 1)
-        self.shield = self.metric(metrics, "ESCUDO", "0", 2)
-        self.streak = self.metric(metrics, "RACHA", "0", 3)
-
-        controls = tk.Frame(self.root, bg=BG)
-        self.controls_panel = controls
-        controls.pack(side="bottom", fill="x", padx=28, pady=(4, 12))
-        self.start_button = tk.Button(controls, text="▶ CONECTAR Y PREPARAR", command=self.start, bg=CYAN, fg="white", font=("Helvetica", 15, "bold"), relief="flat", padx=18, pady=12)
-        self.start_button.pack(side="left", fill="x", expand=True, padx=(0, 8))
-        self.stop_button = tk.Button(controls, text="■ Detener", command=self.stop, bg="#34445B", fg="white", font=("Helvetica", 15), relief="flat", padx=18, pady=12, state="disabled")
-        self.stop_button.pack(side="left", fill="x", expand=True, padx=(8, 0))
 
     def metric(self, parent, title, value, col):
         box = tk.Frame(parent, bg=PANEL, pady=10)

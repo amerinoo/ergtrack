@@ -324,7 +324,8 @@ class ArcadeGUI:
                 def on_metric(metric):
                     if metric.kind == "power":
                         stream.update(metric.watts, metric.received_at)
-                async with PM5Connection(on_metric, pm5_name, interactive=False):
+                async with PM5Connection(on_metric, pm5_name, interactive=False,
+                                         on_status=lambda status: self.messages.put(("connection_status", status))):
                     self.messages.put(("connected", "PM5 CONECTADO"))
                     await run_calibration(None)
         try:
@@ -350,7 +351,8 @@ class ArcadeGUI:
                             stream.update(metric.watts, metric.received_at)
                         elif metric.kind == "general":
                             stream.distance = metric.distance_m
-                    async with PM5Connection(metric_received, args.name, interactive=False):
+                    async with PM5Connection(metric_received, args.name, interactive=False,
+                                             on_status=lambda status: self.messages.put(("connection_status", status))):
                         self.messages.put(("connected", "PM5 CONECTADO"))
                         self.messages.put(("onboarding", "movement"))
                         while not self.stop_flag.is_set():
@@ -457,6 +459,10 @@ class ArcadeGUI:
                     self.feedback.config(text=f"{data:.0f} W", fg=WHITE, font=("Helvetica", 52, "bold"))
                     self.target.config(text="Ya puedes iniciar una partida con este valor")
                     self.status.config(text="Medición completada. El juego no se ha iniciado.")
+                elif kind == "connection_status":
+                    self.connection.config(text="● " + data, fg=GREEN if data == "PM5 CONECTADO" else MUTED if data == "DESCONECTADO" else AMBER)
+                    if data in ("BUSCANDO PM5", "CONECTANDO PM5") and self.phase in ("calibration", "connecting"):
+                        self.feedback.config(text=data, fg=AMBER)
                 elif kind == "connected":
                     self.connection.config(text="● " + data, fg=GREEN)
                 elif kind == "error":

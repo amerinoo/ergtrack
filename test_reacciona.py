@@ -3,7 +3,7 @@ import asyncio
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
-from reacciona import MetricStream, Score, judge, calibrate, Simulator, rest_phase, measure, load_baseline, save_baseline, resolve_baseline, play_game, Audio
+from reacciona import MetricStream, Score, judge, calibrate, Simulator, rest_phase, measure, load_baseline, save_baseline, resolve_baseline, play_game, Audio, CALIBRATION_SAMPLES, CHALLENGE_SECONDS
 from pm5_ble import GENERAL, ADDITIONAL, POWER, decode_notification
 
 class GameTests(unittest.TestCase):
@@ -99,6 +99,7 @@ class GUIEventTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("countdown", kinds)
         self.assertIn("result", kinds)
         self.assertIn("finished", kinds)
+        self.assertEqual(sum(e["event"] == "time_left" for e in events), CHALLENGE_SECONDS[next(e["kind"] for e in events if e["event"] == "challenge")])
 
 class RestTests(unittest.IsolatedAsyncioTestCase):
     async def test_rest_without_power_does_not_fail(self):
@@ -119,13 +120,15 @@ class CalibrationTests(unittest.IsolatedAsyncioTestCase):
         baseline = await calibrate(stream, Simulator(stream, 110, 42), 0)
         self.assertGreater(baseline, 100)
         self.assertLess(baseline, 120)
+        self.assertEqual(CALIBRATION_SAMPLES, 15)
+        self.assertEqual(CHALLENGE_SECONDS, {"escape": 12, "defend": 18, "recover": 15})
 
     async def test_waits_for_movement_instead_of_failing_immediately(self):
         stream = MetricStream()
         async def start_later():
             await asyncio.sleep(.05)
             async def feed():
-                for _ in range(48):
+                for _ in range(18):
                     stream.update(110)
                     await asyncio.sleep(.001)
             await feed()

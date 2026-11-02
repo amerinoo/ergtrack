@@ -378,9 +378,9 @@ class ArcadeGUI:
             self.phase = "playing"
             self.config_panel.pack_forget()
             self.status.pack_forget()
-            self.status.pack(pady=(2, 5), before=self.history)
             # First mount the graph: Tkinter cannot use before= on an unpacked widget.
             self.history.pack(fill="both", expand=True, pady=(12, 6))
+            self.status.pack(pady=(2, 5), before=self.history)
             self.feedback.pack_forget()
             self.feedback.pack(before=self.target, pady=(3, 7))
             self.feedback.config(font=("Helvetica", 39, "bold"))

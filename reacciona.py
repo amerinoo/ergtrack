@@ -16,6 +16,10 @@ import tempfile
 import time
 import wave
 
+CALIBRATION_SAMPLES = 15
+CALIBRATION_WARMUP = 3
+CHALLENGE_SECONDS = {'escape': 12, 'defend': 18, 'recover': 15}
+
 class MetricStream:
     def __init__(self):
         self.samples = deque(maxlen=2000)
@@ -139,7 +143,7 @@ def judge(kind, powers, baseline):
         if len(ratios) < 5:
             return False, False
         hits = sum(r >= 1.30 for r in ratios)
-        return hits >= 4, hits / len(ratios) >= 0.9
+        return hits / len(ratios) >= .75, hits / len(ratios) >= .9
     if len(ratios) < 8:
         return False, False
     lo, hi = {"defend":(.85, 1.15), "recover":(.45, .75)}[kind]
@@ -195,7 +199,7 @@ async def calibrate(stream, simulator, interval, wait_timeout=90, on_progress=No
             raise RuntimeError("No rowing detected within 90 seconds. Check the PM5 and retry.")
     readings = []
     # A few missed notifications must not abort the entire calibration.
-    maximum_ticks = 60
+    maximum_ticks = CALIBRATION_SAMPLES + 15
     for index in range(maximum_ticks):
         if simulator:
             await simulator.tick("baseline")
@@ -209,11 +213,11 @@ async def calibrate(stream, simulator, interval, wait_timeout=90, on_progress=No
             readings.append(power)
         if on_progress:
             on_progress(len(readings))
-        if len(readings) >= 45:
-            return statistics.median(readings[15:])
+        if len(readings) >= CALIBRATION_SAMPLES:
+            return statistics.median(readings[CALIBRATION_WARMUP:])
         if (index + 1) % 15 == 0:
-            print(f"Calibración: {len(readings)}/45 muestras válidas", flush=True)
-    raise RuntimeError(f"Calibration incomplete: {len(readings)}/45 valid samples. Check movement and BLE updates.")
+            print(f"Calibración: {len(readings)}/{CALIBRATION_SAMPLES} muestras válidas", flush=True)
+    raise RuntimeError(f"Calibration incomplete: {len(readings)}/{CALIBRATION_SAMPLES} valid samples. Check movement and BLE updates.")
 
 def valid_baseline(value):
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and 15 <= value <= 3000
@@ -245,7 +249,7 @@ async def resolve_baseline(args, stream, simulator):
         if saved is not None:
             print(f"Reutilizando referencia guardada: {saved:.0f} W. Usa --recalibrate para medir de nuevo.", flush=True)
             return saved
-    print("CALIBRACIÓN: mantén un esfuerzo cómodo durante 45 muestras válidas.", flush=True)
+    print(f"CALIBRACIÓN: mantén un esfuerzo cómodo durante {CALIBRATION_SAMPLES} muestras válidas.", flush=True)
     baseline = await calibrate(stream, simulator, args.tick,
                                on_progress=lambda n: emit(args, "calibration", samples=n))
     if not simulator:
@@ -268,7 +272,7 @@ async def play_game(args, stream, audio, simulator):
     print(f"Referencia: {baseline:.0f} W. Empieza el juego.")
     print(f"Entre desafíos: mantén {baseline*.85:.0f}-{baseline*1.15:.0f} W, sin dejar de remar.")
     print("REGLAS: +100 por acierto; +25 si el 90% de muestras cumple el objetivo; +50 cada 3 aciertos seguidos.")
-    print("ESCAPAR: al menos 130% de referencia (4/5 lecturas); DEFENDER: 85%-115%; RECUPERAR: 45%-75% (6/8 lecturas).")
+    print("ESCAPAR: al menos 130% de referencia (75% de muestras); DEFENDER: 85%-115%; RECUPERAR: 45%-75% (75% de muestras).")
     print("Tres vidas; fallar ESCAPAR quita una vida; dos DEFENDER correctos dan un escudo.")
     await audio.speak("Bienvenido a Reacciona. Entre desafíos sigue remando a ritmo cómodo. Escapar significa remar fuerte, defender significa mantener tu ritmo y recuperar significa remar suave. Después de cada aviso tendrás tres segundos para cambiar el esfuerzo.")
     score = Score()
@@ -287,7 +291,7 @@ async def play_game(args, stream, audio, simulator):
             break
         emit(args, "rest", round=number, rounds=args.rounds, low=baseline*.85, high=baseline*1.15)
         print(f"Ronda {number}/{args.rounds}: mantén {baseline*.85:.0f}-{baseline*1.15:.0f} W y espera la señal.", flush=True)
-        delay = rng.randint(8, 12)
+        delay = rng.randint(5, 7)
         await rest_phase(delay, simulator, stream, args.tick)
         if getattr(args, "should_stop", lambda: False)():
             break
@@ -314,9 +318,16 @@ async def play_game(args, stream, audio, simulator):
             transition.extend(sample)
         print("¡YA!", flush=True)
         await audio.play("ready")
-        emit(args, "evaluating", seconds=5 if kind == "escape" else 8)
+        emit(args, "evaluating", seconds=CHALLENGE_SECONDS[kind])
         print("Evaluando...", flush=True)
-        powers = await measure(stream, 5 if kind == "escape" else 8, simulator, kind, args.tick)
+        powers = []
+        for remaining in range(CHALLENGE_SECONDS[kind], 0, -1):
+            emit(args, "time_left", seconds=remaining)
+            sample = await measure(stream, 1, simulator, kind, args.tick)
+            if sample is None:
+                powers = None
+                break
+            powers.extend(sample)
         if transition is None or powers is None:
             raise RuntimeError("No llegan datos de potencia del PM5 durante el desafío. Sin penalización.")
         valid, excellent = judge(kind, powers, baseline)
@@ -337,6 +348,7 @@ async def play_game(args, stream, audio, simulator):
         await audio.speak("¡Conseguido! Ganas puntos. Vuelve al ritmo cómodo." if valid else "No conseguido. Vuelve al ritmo cómodo para la próxima ronda.")
         if reward["shield_gained"]:
             await audio.play("shield")
+        await rest_phase(3, simulator, stream, args.tick)
         log.append({"round":number, "event":kind, "valid":valid, "excellent":excellent if valid else False,
                     "power_w":[round(p, 1) for p in powers], "earned":reward["earned"],
                     "lives":score.lives, "shield":score.shield, "points":score.points})

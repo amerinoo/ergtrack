@@ -102,28 +102,46 @@ class ArcadeGUI:
         panel = tk.Frame(self.root, bg=PANEL, padx=24, pady=16)
         self.game_panel = panel
         panel.pack(fill="both", expand=True, padx=28, pady=5)
-        self.round_label = self.label(panel, "PREPARADO · 0/3", 15, MUTED, True)
-        self.round_label.pack(pady=(0, 3))
-        self.phase_label = self.label(panel, "1. SIÉNTATE EN EL REMO", 22, WHITE, True, wraplength=850)
-        self.phase_label.pack(pady=(1, 2))
-        self.target = self.label(panel, "2. Pulsa MENU en el PM5 para encenderlo", 14, CYAN, True)
-        self.target.pack(pady=(0, 2))
-        self.watts = self.label(panel, "— W", 16, MUTED, True)
-        self.watts.pack(pady=(0, 2))
-        self.feedback = self.label(panel, "3. Pulsa CONECTAR para empezar", 22, WHITE, True, wraplength=840)
-        self.feedback.pack(pady=(3, 7))
-        self.watts.pack_forget()
+        self.round_label = self.label(panel, "PREPARADO · 0/3", 17, MUTED, True)
+        self.round_label.pack(pady=(0, 10))
+
+        # Lectura de un vistazo desde la máquina: acción a la izquierda y
+        # vatios grandes a la derecha. No mezclar pack y grid en un mismo padre.
+        self.game_columns = tk.Frame(panel, bg=PANEL)
+        self.game_columns.pack(fill="x", pady=(0, 8))
+        self.game_columns.grid_columnconfigure(0, weight=3, uniform="game")
+        self.game_columns.grid_columnconfigure(1, weight=2, uniform="game")
+
+        left = tk.Frame(self.game_columns, bg=PANEL)
+        left.grid(row=0, column=0, sticky="nsew", padx=(0, 16))
+        right = tk.Frame(self.game_columns, bg="#172235", padx=14, pady=18)
+        right.grid(row=0, column=1, sticky="nsew")
+
+        self.phase_label = self.label(left, "1. SIÉNTATE EN EL REMO", 25, WHITE, True,
+                                      wraplength=460, justify="left")
+        self.phase_label.pack(anchor="w", pady=(0, 12))
+        self.feedback = self.label(left, "3. Pulsa CONECTAR para empezar", 35, WHITE, True,
+                                   wraplength=460, justify="left")
+        self.feedback.pack(anchor="w", pady=(0, 12))
+        self.status = self.label(left, "Conecta el PM5 y empieza a remar", 14, MUTED,
+                                 wraplength=460, justify="left")
+        self.status.pack(anchor="w", pady=(0, 6))
+
+        self.target = self.label(right, "OBJETIVO", 15, MUTED, True, wraplength=300)
+        self.target.pack(pady=(0, 6))
+        self.target_value = self.label(right, "—", 35, CYAN, True, wraplength=320)
+        self.target_value.pack(pady=(0, 16))
+        self.actual_label = self.label(right, "POTENCIA ACTUAL", 15, MUTED, True)
+        self.actual_label.pack(pady=(0, 5))
+        self.watts = self.label(right, "— W", 30, WHITE, True)
+        self.watts.pack()
+
         self.gauge = tk.Canvas(panel, height=260, bg="#34445B", highlightthickness=0)
-        # Mantener el gauge anterior fuera de la vista: el gráfico histórico es el principal.
-        # self.gauge.pack(fill="x", pady=(12, 4))
+        # El gráfico histórico sigue siendo el principal durante el juego.
         self.gauge.bind("<Configure>", lambda _: self.draw_gauge())
         self.gauge_value = None
-        self.status = self.label(panel, "Conecta el PM5 y empieza a remar", 14, MUTED, wraplength=660)
-        self.status.pack(pady=(2, 5))
-        self.history = tk.Canvas(panel, height=340, bg="#172235", highlightthickness=0)
-        # No graph until movement/gameplay: keep onboarding clear and compact.
+        self.history = tk.Canvas(panel, height=260, bg="#172235", highlightthickness=0)
         self.history.bind("<Configure>", lambda _: self.draw_history())
-
 
     def action_button(self, parent, title, command, background, foreground, enabled=True):
         """Custom Tk surface: avoids macOS native button colors overriding fg/bg."""
@@ -256,8 +274,6 @@ class ArcadeGUI:
         self.last_visual_rx = 0.0
         self.last_watts = None
         self.phase = "connecting"
-        self.feedback.pack_forget()
-        self.feedback.pack(pady=(3, 7))
         self.feedback.config(font=("Helvetica", 22, "bold"))
         self.history.pack_forget()
         self.is_simulation = self.simulated.get()
@@ -269,7 +285,8 @@ class ArcadeGUI:
         self.set_button_enabled(self.calibrate_button, False)
         self.connection.config(text="● SIMULACIÓN" if self.is_simulation else "● CONECTANDO...", fg=GREEN if self.is_simulation else AMBER)
         self.phase_label.config(text="INICIANDO SIMULACIÓN" if self.is_simulation else "CONECTANDO TU REMO", fg=WHITE)
-        self.target.config(text="No necesitas una máquina" if self.is_simulation else "Enciende el PM5 pulsando MENU")
+        self.target.config(text="ESTADO")
+        self.target_value.config(text="SIMULACIÓN" if self.is_simulation else "BUSCANDO PM5", font=("Helvetica", 20, "bold"))
         self.feedback.config(text="3. PREPARANDO PARTIDA…" if self.is_simulation else "3. Buscando la máquina…", fg=AMBER)
         self.status.config(text="Generando potencia de prueba…" if self.is_simulation else "No selecciones ningún entrenamiento en el PM5.")
         args = SimpleNamespace(rounds=rounds, baseline=baseline, recalibrate=False,
@@ -292,15 +309,13 @@ class ArcadeGUI:
         self.last_smoothing_at = 0.0
         self.last_visual_rx = 0.0
         self.history.pack_forget()
-        self.watts.pack_forget()
         self.round_label.config(text="MEDIR REFERENCIA")
         self.phase_label.config(text="CALIBRACIÓN RÁPIDA · 15 S" if not self.is_simulation else "SIMULANDO CALIBRACIÓN", fg=WHITE)
-        self.target.config(text="Enciende el PM5 con MENU y empieza a remar" if not self.is_simulation else "Calculando la referencia simulada")
+        self.target.config(text="OBJETIVO")
+        self.target_value.config(text="RITMO CÓMODO", font=("Helvetica", 20, "bold"))
         self.feedback.config(text="ESPERANDO MOVIMIENTO · PM5 CONECTANDO" if not self.is_simulation else "INICIANDO MEDICIÓN", fg=CYAN,
                              font=("Helvetica", 22, "bold"))
         self.status.config(text="La partida NO empezará después de medir.")
-        if not self.status.winfo_manager():
-            self.status.pack(pady=(2, 5), before=self.history)
         self.set_button_enabled(self.start_button, False)
         self.set_button_enabled(self.calibrate_button, False)
         self.set_button_enabled(self.stop_button, True)
@@ -379,28 +394,25 @@ class ArcadeGUI:
         if event == "start":
             self.phase = "playing"
             self.config_panel.pack_forget()
-            self.status.pack_forget()
-            # First mount the graph: Tkinter cannot use before= on an unpacked widget.
             self.history.pack(fill="both", expand=True, pady=(12, 6))
-            self.status.pack(pady=(2, 5), before=self.history)
-            self.feedback.pack_forget()
-            self.feedback.pack(before=self.target, pady=(3, 7))
-            self.feedback.config(font=("Helvetica", 39, "bold"))
-            self.watts.pack(pady=(0, 2), before=self.history)
+            self.feedback.config(font=("Helvetica", 35, "bold"))
             self.baseline = value["baseline"]
-            self.target.config(text="Objetivo de espera: %d–%d W" % (self.baseline*.85, self.baseline*1.15))
+            self.target.config(text="OBJETIVO DE ESPERA")
+            self.target_value.config(text="%d–%d W" % (self.baseline*.85, self.baseline*1.15))
         elif event == "calibration":
             self.phase = "calibration"
             self.phase_label.config(text="REMA A RITMO CÓMODO", fg=WHITE)
             self.feedback.config(text=f"CALIBRANDO · {value['samples']}/{CALIBRATION_SAMPLES}", fg=CYAN)
-            self.target.config(text="Mantén un esfuerzo natural y constante")
+            self.target.config(text="OBJETIVO")
+            self.target_value.config(text="RITMO CÓMODO", font=("Helvetica", 20, "bold"))
         elif event == "rest":
             self.phase = "rest"
             self.active_kind = "rest"
             self.current_bounds = (value["low"], value["high"])
             self.round_label.config(text=f"RONDA {value['round']}/{value['rounds']}")
             self.phase_label.config(text="SIGUIENTE DESAFÍO EN BREVE", fg=MUTED)
-            self.target.config(text=f"Objetivo: {value['low']:.0f}–{value['high']:.0f} W")
+            self.target.config(text="OBJETIVO")
+            self.target_value.config(text=f"{value['low']:.0f}–{value['high']:.0f} W", font=("Helvetica", 35, "bold"))
             self.status.config(text="ESCAPA = fuerte · DEFIENDE = constante · RECUPERA = suave")
         elif event == "challenge":
             self.phase = "challenge"
@@ -409,8 +421,9 @@ class ArcadeGUI:
             title = {"escape": "¡ESCAPA!", "defend": "¡DEFIENDE!", "recover": "¡RECUPERA!"}[value["kind"]]
             self.phase_label.config(text=title, fg={"escape": RED, "defend": GREEN, "recover": CYAN}[value["kind"]])
             goal = f"Más de {value['low']:.0f} W" if value["high"] is None else f"{value['low']:.0f}–{value['high']:.0f} W"
-            self.target.config(text="Objetivo: " + goal)
-            self.status.config(text="Adapta el esfuerzo durante la cuenta atrás; evaluación al escuchar ¡YA!")
+            self.target.config(text="OBJETIVO")
+            self.target_value.config(text=goal.replace("Más de ", "≥ "), font=("Helvetica", 35, "bold"))
+            self.status.config(text="Ajusta el ritmo. La evaluación empieza al escuchar ¡YA!")
         elif event == "countdown":
             self.phase_label.config(text=f"PREPÁRATE · {value['value']}", fg=AMBER)
         elif event == "evaluating":
@@ -432,7 +445,6 @@ class ArcadeGUI:
             self.phase = "finished"
             self.phase_label.config(text="FIN DE LA PARTIDA", fg=MUTED)
             self.feedback.config(text=f"¡{value['points']} PUNTOS!", fg=GREEN)
-            self.status.pack(pady=(2, 5), before=self.history)
             self.status.config(text=f"{value['points']} puntos · {value['successes']}/{value['attempts']} desafíos superados")
 
     def poll(self):
@@ -445,7 +457,8 @@ class ArcadeGUI:
                     self.phase = "movement" if data == "movement" else "ready"
                     self.history.pack_forget()
                     self.phase_label.config(text="¡EMPIEZA A REMAR!" if data == "movement" else "¡TODO LISTO!", fg=GREEN)
-                    self.target.config(text="Rema suavemente para comprobar la conexión" if data == "movement" else "La partida empieza ahora")
+                    self.target.config(text="INSTRUCCIONES")
+                    self.target_value.config(text="REMA SUAVE" if data == "movement" else "¡PREPARADO!", font=("Helvetica", 22, "bold"))
                     self.feedback.config(text="Detectaremos tu primera remada automáticamente" if data == "movement" else "ESCAPA = fuerte · DEFIENDE = constante · RECUPERA = suave", fg=WHITE)
                 elif kind == "calibration_progress":
                     if self.phase == "calibration":
@@ -457,7 +470,8 @@ class ArcadeGUI:
                     self.baseline = data
                     self.phase_label.config(text="REFERENCIA MEDIDA", fg=GREEN)
                     self.feedback.config(text=f"{data:.0f} W", fg=WHITE, font=("Helvetica", 52, "bold"))
-                    self.target.config(text="Ya puedes iniciar una partida con este valor")
+                    self.target.config(text="REFERENCIA")
+                    self.target_value.config(text=f"{data:.0f} W", font=("Helvetica", 35, "bold"))
                     self.status.config(text="Medición completada. El juego no se ha iniciado.")
                 elif kind == "connection_status":
                     self.connection.config(text="● " + data, fg=GREEN if data == "PM5 CONECTADO" else MUTED if data == "DESCONECTADO" else AMBER)
@@ -466,15 +480,14 @@ class ArcadeGUI:
                             self.feedback.config(text=data, fg=AMBER)
                         elif data == "PM5 CONECTADO" and self.phase == "calibration":
                             self.feedback.config(text="ESPERANDO TUS PRIMERAS REMADAS", fg=CYAN)
-                            self.target.config(text="Empieza a remar a ritmo cómodo para medir tu referencia")
+                            self.target.config(text="OBJETIVO")
+                            self.target_value.config(text="RITMO CÓMODO", font=("Helvetica", 20, "bold"))
                 elif kind == "connected":
                     self.connection.config(text="● " + data, fg=GREEN)
                     if self.phase == "calibration":
                         self.feedback.config(text="ESPERANDO TUS PRIMERAS REMADAS" if not self.is_simulation else "MIDIENDO REFERENCIA", fg=CYAN)
                 elif kind == "error":
                     self.status.config(text="Error: " + data)
-                    if not self.status.winfo_manager():
-                        self.status.pack(pady=(2, 5), before=self.history)
                     self.connection.config(text="● ERROR", fg=RED)
                     self.phase = "error"
                 elif kind == "done":
@@ -483,7 +496,6 @@ class ArcadeGUI:
                     self.config_panel.pack(fill="x", padx=28, pady=(0, 12), before=self.game_panel)
                     if self.phase == "setup":
                         self.history.pack_forget()
-                        self.watts.pack_forget()
                     self.running = False
                     self.set_button_enabled(self.start_button, True)
                     self.set_button_enabled(self.stop_button, False)
@@ -507,7 +519,7 @@ class ArcadeGUI:
             shown = self.last_watts
             fresh = shown is not None and now - self.last_visual_rx <= 4
             self.gauge_value = self.smoothed_watts
-            self.watts.config(text=f"Potencia · {shown:.0f} W" if shown is not None else "Potencia · — W",
+            self.watts.config(text=f"{shown:.0f} W" if shown is not None else "— W",
                               fg=WHITE if fresh else MUTED)
             lo, hi = self.current_bounds
             if self.phase in ("playing", "rest", "challenge", "evaluating"):

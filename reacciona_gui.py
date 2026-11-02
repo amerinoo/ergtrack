@@ -11,7 +11,7 @@ import time
 from collections import deque
 
 from pm5_ble import PM5Connection
-from reacciona import Audio, MetricStream, Simulator, play_game, load_baseline, calibrate, save_baseline
+from reacciona import Audio, MetricStream, Simulator, play_game, load_baseline, calibrate, save_baseline, CALIBRATION_SAMPLES
 
 BG = "#101827"
 PANEL = "#202D40"
@@ -294,9 +294,9 @@ class ArcadeGUI:
         self.history.pack_forget()
         self.watts.pack_forget()
         self.round_label.config(text="MEDIR REFERENCIA")
-        self.phase_label.config(text="REMA A RITMO CÓMODO" if not self.is_simulation else "SIMULANDO CALIBRACIÓN", fg=WHITE)
+        self.phase_label.config(text="CALIBRACIÓN RÁPIDA · 15 S" if not self.is_simulation else "SIMULANDO CALIBRACIÓN", fg=WHITE)
         self.target.config(text="Enciende el PM5 con MENU y empieza a remar" if not self.is_simulation else "Calculando la referencia simulada")
-        self.feedback.config(text="ESPERANDO LAS PRIMERAS REMADAS" if not self.is_simulation else "INICIANDO MEDICIÓN", fg=CYAN,
+        self.feedback.config(text="ESPERANDO MOVIMIENTO · PM5 CONECTANDO" if not self.is_simulation else "INICIANDO MEDICIÓN", fg=CYAN,
                              font=("Helvetica", 22, "bold"))
         self.status.config(text="La partida NO empezará después de medir.")
         if not self.status.winfo_manager():
@@ -378,6 +378,7 @@ class ArcadeGUI:
             self.phase = "playing"
             self.config_panel.pack_forget()
             self.status.pack_forget()
+            self.status.pack(pady=(2, 5), before=self.history)
             # First mount the graph: Tkinter cannot use before= on an unpacked widget.
             self.history.pack(fill="both", expand=True, pady=(12, 6))
             self.feedback.pack_forget()
@@ -389,16 +390,16 @@ class ArcadeGUI:
         elif event == "calibration":
             self.phase = "calibration"
             self.phase_label.config(text="REMA A RITMO CÓMODO", fg=WHITE)
-            self.feedback.config(text=f"CALIBRANDO · {value['samples']}/45", fg=CYAN)
+            self.feedback.config(text=f"CALIBRANDO · {value['samples']}/{CALIBRATION_SAMPLES}", fg=CYAN)
             self.target.config(text="Mantén un esfuerzo natural y constante")
         elif event == "rest":
             self.phase = "rest"
             self.active_kind = "rest"
             self.current_bounds = (value["low"], value["high"])
             self.round_label.config(text=f"RONDA {value['round']}/{value['rounds']}")
-            self.phase_label.config(text="MANTÉN EL RITMO", fg=MUTED)
+            self.phase_label.config(text="SIGUIENTE DESAFÍO EN BREVE", fg=MUTED)
             self.target.config(text=f"Objetivo: {value['low']:.0f}–{value['high']:.0f} W")
-            self.status.config(text="Mantén este intervalo hasta escuchar la señal")
+            self.status.config(text="ESCAPA = fuerte · DEFIENDE = constante · RECUPERA = suave")
         elif event == "challenge":
             self.phase = "challenge"
             self.active_kind = value["kind"]
@@ -407,11 +408,14 @@ class ArcadeGUI:
             self.phase_label.config(text=title, fg={"escape": RED, "defend": GREEN, "recover": CYAN}[value["kind"]])
             goal = f"Más de {value['low']:.0f} W" if value["high"] is None else f"{value['low']:.0f}–{value['high']:.0f} W"
             self.target.config(text="Objetivo: " + goal)
+            self.status.config(text="Adapta el esfuerzo durante la cuenta atrás; evaluación al escuchar ¡YA!")
         elif event == "countdown":
             self.phase_label.config(text=f"PREPÁRATE · {value['value']}", fg=AMBER)
         elif event == "evaluating":
             self.phase = "evaluating"
-            self.phase_label.config(text="MANTÉN EL ESFUERZO", fg=MUTED)
+            self.phase_label.config(text="¡YA! MANTÉN EL ESFUERZO", fg=WHITE)
+        elif event == "time_left":
+            self.round_label.config(text=f"QUEDAN {value['seconds']} S")
         elif event == "result":
             self.phase = "result"
             self.points.config(text=str(value["points"]))
@@ -443,7 +447,7 @@ class ArcadeGUI:
                     self.feedback.config(text="Detectaremos tu primera remada automáticamente" if data == "movement" else "ESCAPA = fuerte · DEFIENDE = constante · RECUPERA = suave", fg=WHITE)
                 elif kind == "calibration_progress":
                     if self.phase == "calibration":
-                        self.feedback.config(text=f"MIDIENDO · {data}/45 MUESTRAS", fg=CYAN)
+                        self.feedback.config(text=f"MIDIENDO · {data}/{CALIBRATION_SAMPLES} MUESTRAS", fg=CYAN)
                 elif kind == "calibration_result":
                     self.phase = "calibration_done"
                     self.baseline_entry.delete(0, "end")
@@ -460,6 +464,7 @@ class ArcadeGUI:
                     if not self.status.winfo_manager():
                         self.status.pack(pady=(2, 5), before=self.history)
                     self.connection.config(text="● ERROR", fg=RED)
+                    self.phase = "error"
                 elif kind == "done":
                     if self.phase not in ("finished", "error", "calibration_done"):
                         self.phase = "setup"
@@ -497,11 +502,11 @@ class ArcadeGUI:
                 if shown is None:
                     self.feedback.config(text="EMPIEZA A REMAR", fg=WHITE)
                 elif not fresh:
-                    self.feedback.config(text="SIGUE REMANDO PARA CONTINUAR", fg=AMBER)
+                    self.feedback.config(text="SIN POTENCIA RECIENTE · COMPRUEBA EL PM5", fg=AMBER)
                 elif lo is not None and self.smoothed_watts < lo:
-                    self.feedback.config(text="¡REMA MÁS FUERTE!", fg=AMBER)
+                    self.feedback.config(text=f"¡SUBE! FALTAN {lo-self.smoothed_watts:.0f} W", fg=AMBER)
                 elif hi is not None and self.smoothed_watts > hi:
-                    self.feedback.config(text="¡REMA MÁS SUAVE!", fg=RED)
+                    self.feedback.config(text=f"¡BAJA! SOBRAN {self.smoothed_watts-hi:.0f} W", fg=RED)
                 else:
                     self.feedback.config(text="¡ASÍ, PERFECTO!", fg=GREEN)
             self.draw_history()

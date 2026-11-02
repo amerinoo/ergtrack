@@ -461,10 +461,16 @@ class ArcadeGUI:
                     self.status.config(text="Medición completada. El juego no se ha iniciado.")
                 elif kind == "connection_status":
                     self.connection.config(text="● " + data, fg=GREEN if data == "PM5 CONECTADO" else MUTED if data == "DESCONECTADO" else AMBER)
-                    if data in ("BUSCANDO PM5", "CONECTANDO PM5") and self.phase in ("calibration", "connecting"):
-                        self.feedback.config(text=data, fg=AMBER)
+                    if self.phase in ("calibration", "connecting"):
+                        if data in ("BUSCANDO PM5", "CONECTANDO PM5"):
+                            self.feedback.config(text=data, fg=AMBER)
+                        elif data == "PM5 CONECTADO" and self.phase == "calibration":
+                            self.feedback.config(text="ESPERANDO TUS PRIMERAS REMADAS", fg=CYAN)
+                            self.target.config(text="Empieza a remar a ritmo cómodo para medir tu referencia")
                 elif kind == "connected":
                     self.connection.config(text="● " + data, fg=GREEN)
+                    if self.phase == "calibration":
+                        self.feedback.config(text="ESPERANDO TUS PRIMERAS REMADAS" if not self.is_simulation else "MIDIENDO REFERENCIA", fg=CYAN)
                 elif kind == "error":
                     self.status.config(text="Error: " + data)
                     if not self.status.winfo_manager():

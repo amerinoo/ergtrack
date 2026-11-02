@@ -75,8 +75,9 @@ def choose_pm5(devices):
 
 class PM5Connection:
     """Async context manager yielding decoded notifications to a callback."""
-    def __init__(self, callback, name="", interactive=True):
+    def __init__(self, callback, name="", interactive=True, on_status=None):
         self.callback = callback
+        self.on_status = on_status or (lambda status: None)
         self.name = name
         self.interactive = interactive
         self.client = None
@@ -86,6 +87,7 @@ class PM5Connection:
             from bleak import BleakClient
         except ImportError as exc:
             raise RuntimeError("Install bleak: python -m pip install bleak") from exc
+        self.on_status("BUSCANDO PM5")
         devices = await discover_pm5(self.name)
         if self.interactive:
             device, label = choose_pm5(devices)
@@ -93,6 +95,7 @@ class PM5Connection:
             if len(devices) != 1:
                 raise RuntimeError(f"Expected exactly one PM5, found {len(devices)}")
             device, label = devices[0]
+        self.on_status("CONECTANDO PM5")
         print(f"Connecting to {label} ...", flush=True)
         self.client = BleakClient(device, timeout=30)
         await self.client.connect()
@@ -106,9 +109,11 @@ class PM5Connection:
         except Exception:
             await self.client.disconnect()
             raise
+        self.on_status("PM5 CONECTADO")
         print("CONNECTED.", flush=True)
         return self
 
     async def __aexit__(self, *_):
         if self.client and self.client.is_connected:
             await self.client.disconnect()
+        self.on_status("DESCONECTADO")
